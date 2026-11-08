@@ -55,6 +55,7 @@ public class CanvasView extends View {
     private Editor.Stroke stroke;
     private Listener listener;
     private boolean gesturing;
+    private boolean userMoved;
     private float lastMidX;
     private float lastMidY;
 
@@ -65,12 +66,13 @@ public class CanvasView extends View {
 
     public CanvasView(Context context, AttributeSet attrs) {
         super(context, attrs);
-        backgroundPaint.setColor(0xFF9E9E9E);
+        backgroundPaint.setColor(context.getColor(R.color.canvas_bg));
         scaleDetector = new ScaleGestureDetector(context,
                 new ScaleGestureDetector.SimpleOnScaleGestureListener() {
                     @Override
                     public boolean onScale(ScaleGestureDetector d) {
                         float factor = d.getScaleFactor();
+                        userMoved = true;
                         matrix.postScale(factor, factor, d.getFocusX(), d.getFocusY());
                         invalidate();
                         return true;
@@ -92,6 +94,7 @@ public class CanvasView extends View {
     /** Shows another document and fits it to the screen. */
     public void setDocument(Document doc) {
         cancelStroke();
+        userMoved = false;
         document = doc;
         editor = new Editor(doc, MAX_HISTORY);
         tilesAcross = (doc.getWidth() + TILE - 1) / TILE;
@@ -214,7 +217,7 @@ public class CanvasView extends View {
 
     @Override
     protected void onSizeChanged(int w, int h, int oldw, int oldh) {
-        if (oldw == 0 && oldh == 0) {
+        if (!userMoved) {
             fit();
         }
     }
@@ -311,6 +314,7 @@ public class CanvasView extends View {
                     if (e.getPointerCount() >= 2) {
                         float mx = midX(e);
                         float my = midY(e);
+                        userMoved = true;
                         matrix.postTranslate(mx - lastMidX, my - lastMidY);
                         lastMidX = mx;
                         lastMidY = my;
@@ -356,10 +360,6 @@ public class CanvasView extends View {
             return;
         }
         boolean finger = e.getToolType(0) == MotionEvent.TOOL_TYPE_FINGER;
-        float minX = Float.MAX_VALUE;
-        float minY = Float.MAX_VALUE;
-        float maxX = -Float.MAX_VALUE;
-        float maxY = -Float.MAX_VALUE;
         matrix.invert(inverse);
         int n = e.getHistorySize();
         for (int i = 0; i <= n; i++) {
@@ -370,37 +370,20 @@ public class CanvasView extends View {
                     : last ? e.getPressure(0) : e.getHistoricalPressure(0, i);
             inverse.mapPoints(point);
             stroke.addPoint(point[0], point[1], pressure);
-            minX = Math.min(minX, point[0]);
-            maxX = Math.max(maxX, point[0]);
-            minY = Math.min(minY, point[1]);
-            maxY = Math.max(maxY, point[1]);
         }
-        refreshArea(minX, minY, maxX, maxY);
-    }
-
-    /** Rebuilds only what this batch of points (plus the brush radius) may have changed. */
-    private void refreshArea(float minX, float minY, float maxX, float maxY) {
-        float pad = radius + 3f;
-        // A batch continues the previous one, so include a margin for the connecting segment.
-        int left = Math.max(0, (int) Math.floor(minX - pad - radius));
-        int top = Math.max(0, (int) Math.floor(minY - pad - radius));
-        int right = Math.min(document.getWidth(), (int) Math.ceil(maxX + pad + radius));
-        int bottom = Math.min(document.getHeight(), (int) Math.ceil(maxY + pad + radius));
-        if (left >= right || top >= bottom) {
-            return;
-        }
-        Rect r = new Rect(left, top, right, bottom);
-        markStale(r);
-        invalidateCanvasRect(r);
+        // Redraw only the pixels this batch of points really changed.
+        Rect changed = stroke.takeChanged();
+        markStale(changed);
+        invalidateCanvasRect(changed);
     }
 
     private void endStroke() {
         if (stroke != null) {
-            Rect dirty = stroke.getDirty();
+            Rect rest = stroke.takeChanged();
             stroke.end();
             stroke = null;
-            markStale(dirty);
-            invalidateCanvasRect(dirty);
+            markStale(rest);
+            invalidateCanvasRect(rest);
             notifyHistory();
         }
     }

@@ -4,19 +4,53 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:fitsSystemWindows="true"
-    android:background="?attr/colorSurface">
+    android:background="@color/canvas_bg">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:orientation="vertical">
 
-        <com.google.android.material.appbar.MaterialToolbar
-            android:id="@+id/toolbar"
+        <LinearLayout
+            android:id="@+id/top_bar"
             android:layout_width="match_parent"
-            android:layout_height="?attr/actionBarSize"
-            app:navigationIcon="@drawable/ic_menu"
-            app:title="@string/app_name" />
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:padding="6dp">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_menu"
+                style="?attr/materialIconButtonFilledTonalStyle"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:contentDescription="@string/menu"
+                app:icon="@drawable/ic_menu" />
+
+            <View
+                android:layout_width="12dp"
+                android:layout_height="1dp" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_undo"
+                style="?attr/materialIconButtonFilledTonalStyle"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:contentDescription="@string/undo"
+                app:icon="@drawable/ic_undo" />
+
+            <View
+                android:layout_width="8dp"
+                android:layout_height="1dp" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_redo"
+                style="?attr/materialIconButtonFilledTonalStyle"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:contentDescription="@string/redo"
+                app:icon="@drawable/ic_redo" />
+        </LinearLayout>
 
         <org.nekopaint.app.CanvasView
             android:id="@+id/canvas"
@@ -29,64 +63,111 @@
             android:layout_height="wrap_content"
             android:background="?attr/colorSurfaceContainer"
             android:orientation="vertical"
-            android:paddingTop="4dp">
+            android:paddingTop="6dp">
 
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:gravity="center_vertical"
                 android:orientation="horizontal"
-                android:paddingStart="16dp"
-                android:paddingEnd="16dp">
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp">
 
                 <TextView
-                    android:layout_width="48dp"
+                    android:id="@+id/size_value"
+                    android:layout_width="44dp"
                     android:layout_height="wrap_content"
-                    android:text="@string/size"
-                    android:textAppearance="?attr/textAppearanceLabelMedium" />
+                    android:gravity="end"
+                    android:text="8"
+                    android:textAppearance="?attr/textAppearanceLabelLarge" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/size_minus"
+                    style="?attr/materialIconButtonFilledStyle"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:layout_marginStart="6dp"
+                    android:contentDescription="Size −"
+                    app:icon="@drawable/ic_minus"
+                    app:iconSize="18dp" />
 
                 <com.google.android.material.slider.Slider
                     android:id="@+id/size"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:contentDescription="@string/size"
+                    android:contentDescription="Size"
                     android:stepSize="1"
                     android:valueFrom="1"
                     android:valueTo="150"
-                    android:value="8" />
-            </LinearLayout>
+                    android:value="8"
+                    app:labelBehavior="gone"
+                    app:tickVisible="false" />
 
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/size_plus"
+                    style="?attr/materialIconButtonFilledStyle"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:layout_marginEnd="6dp"
+                    android:contentDescription="Size +"
+                    app:icon="@drawable/ic_add"
+                    app:iconSize="18dp" />
+            </LinearLayout>
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:gravity="center_vertical"
                 android:orientation="horizontal"
-                android:paddingStart="16dp"
-                android:paddingEnd="16dp">
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp">
 
                 <TextView
-                    android:layout_width="48dp"
+                    android:id="@+id/flow_value"
+                    android:layout_width="44dp"
                     android:layout_height="wrap_content"
-                    android:text="@string/flow"
-                    android:textAppearance="?attr/textAppearanceLabelMedium" />
+                    android:gravity="end"
+                    android:text="100"
+                    android:textAppearance="?attr/textAppearanceLabelLarge" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/flow_minus"
+                    style="?attr/materialIconButtonFilledStyle"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:layout_marginStart="6dp"
+                    android:contentDescription="Flow −"
+                    app:icon="@drawable/ic_minus"
+                    app:iconSize="18dp" />
 
                 <com.google.android.material.slider.Slider
                     android:id="@+id/flow"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:contentDescription="@string/flow"
+                    android:contentDescription="Flow"
                     android:stepSize="1"
                     android:valueFrom="1"
                     android:valueTo="100"
-                    android:value="100" />
+                    android:value="100"
+                    app:labelBehavior="gone"
+                    app:tickVisible="false" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/flow_plus"
+                    style="?attr/materialIconButtonFilledStyle"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:layout_marginEnd="6dp"
+                    android:contentDescription="Flow +"
+                    app:icon="@drawable/ic_add"
+                    app:iconSize="18dp" />
             </LinearLayout>
 
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:gravity="center"
+                android:gravity="center_vertical"
                 android:orientation="horizontal"
                 android:padding="8dp">
 
@@ -100,7 +181,7 @@
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/tool_brush"
                         style="?attr/materialIconButtonOutlinedStyle"
-                        android:layout_width="64dp"
+                        android:layout_width="56dp"
                         android:layout_height="48dp"
                         android:contentDescription="@string/brush"
                         app:icon="@drawable/ic_brush" />
@@ -108,7 +189,7 @@
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/tool_eraser"
                         style="?attr/materialIconButtonOutlinedStyle"
-                        android:layout_width="64dp"
+                        android:layout_width="56dp"
                         android:layout_height="48dp"
                         android:contentDescription="@string/eraser"
                         app:icon="@drawable/ic_eraser" />
@@ -119,12 +200,28 @@
                     android:layout_height="1dp"
                     android:layout_weight="1" />
 
+                <org.nekopaint.app.BrushPreview
+                    android:id="@+id/brush_preview"
+                    android:layout_width="52dp"
+                    android:layout_height="52dp" />
+
+                <View
+                    android:layout_width="0dp"
+                    android:layout_height="1dp"
+                    android:layout_weight="1" />
+
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/color_button"
-                    style="@style/Widget.Material3.Button.IconButton.Filled"
-                    android:layout_width="56dp"
-                    android:layout_height="56dp"
-                    android:contentDescription="@string/color" />
+                    style="?attr/materialButtonOutlinedStyle"
+                    android:layout_width="48dp"
+                    android:layout_height="48dp"
+                    android:contentDescription="@string/color"
+                    android:insetLeft="0dp"
+                    android:insetTop="0dp"
+                    android:insetRight="0dp"
+                    android:insetBottom="0dp"
+                    app:cornerRadius="8dp"
+                    app:strokeWidth="2dp" />
 
                 <View
                     android:layout_width="0dp"
@@ -133,10 +230,12 @@
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/layers_button"
-                    style="?attr/materialIconButtonFilledTonalStyle"
-                    android:layout_width="64dp"
+                    style="?attr/materialButtonTonalStyle"
+                    android:layout_width="wrap_content"
                     android:layout_height="48dp"
                     android:contentDescription="@string/layers"
+                    android:minWidth="0dp"
+                    android:text="1"
                     app:icon="@drawable/ic_layers" />
             </LinearLayout>
         </LinearLayout>

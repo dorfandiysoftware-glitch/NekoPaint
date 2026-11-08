@@ -181,4 +181,19 @@ public class StrokeRasterizerTest {
         assertEquals(0xFF0000, new Brush(0xFFFF0000, 5f, 1f, 1f, 0.1f, false).getRgb());
         assertThrows(IllegalArgumentException.class, () -> new StrokeRasterizer(null, hard(5f)));
     }
+
+    @Test
+    public void takeChangedReportsOnlyNewChanges() {
+        Layer layer = newLayer();
+        StrokeRasterizer r = new StrokeRasterizer(layer, hard(3f));
+        r.addPoint(10f, 10f, 1f);
+        Rect first = r.takeChanged();
+        assertEquals(new Rect(7, 7, 13, 13), first);
+        assertTrue(r.takeChanged().isEmpty());
+        r.addPoint(30f, 10f, 1f);
+        Rect second = r.takeChanged();
+        assertTrue(second.left >= 10);
+        assertTrue(second.right <= 34);
+        assertEquals(first.union(second), r.getDirty());
+    }
 }

@@ -34,6 +34,11 @@ public final class StrokeRasterizer {
     private int maxX = -1;
     private int maxY = -1;
 
+    private int pendMinX = Integer.MAX_VALUE;
+    private int pendMinY = Integer.MAX_VALUE;
+    private int pendMaxX = -1;
+    private int pendMaxY = -1;
+
     public StrokeRasterizer(Layer layer, Brush brush) {
         if (layer == null || brush == null) {
             throw new IllegalArgumentException("Layer and brush are required");
@@ -87,6 +92,22 @@ public final class StrokeRasterizer {
         lastPressure = p;
     }
 
+    /**
+     * @return the smallest rectangle containing every pixel that changed since the previous call
+     *         of this method (or since the start), or empty. Lets a screen redraw only what the
+     *         latest input points touched.
+     */
+    public Rect takeChanged() {
+        Rect r = pendMaxX < 0
+                ? Rect.EMPTY
+                : new Rect(pendMinX, pendMinY, pendMaxX + 1, pendMaxY + 1);
+        pendMinX = Integer.MAX_VALUE;
+        pendMinY = Integer.MAX_VALUE;
+        pendMaxX = -1;
+        pendMaxY = -1;
+        return r;
+    }
+
     /** @return the smallest rectangle containing every pixel that changed, or empty */
     public Rect getDirty() {
         return maxX < 0 ? Rect.EMPTY : new Rect(minX, minY, maxX + 1, maxY + 1);
@@ -110,7 +131,15 @@ public final class StrokeRasterizer {
 
         for (int y = y0; y <= y1; y++) {
             float dy = y + 0.5f - cy;
-            for (int x = x0; x <= x1; x++) {
+            float rest = r * r - dy * dy;
+            if (rest <= 0f) {
+                continue;
+            }
+            // Only the part of this row that lies inside the circle needs a look.
+            float half = (float) Math.sqrt(rest);
+            int xa = Math.max(x0, (int) Math.floor(cx - half - 0.5f));
+            int xb = Math.min(x1, (int) Math.ceil(cx + half - 0.5f));
+            for (int x = xa; x <= xb; x++) {
                 float dx = x + 0.5f - cx;
                 float d = (float) Math.sqrt(dx * dx + dy * dy);
                 if (d >= r) {
@@ -138,6 +167,18 @@ public final class StrokeRasterizer {
     }
 
     private void markDirty(int x, int y) {
+        if (x < pendMinX) {
+            pendMinX = x;
+        }
+        if (y < pendMinY) {
+            pendMinY = y;
+        }
+        if (x > pendMaxX) {
+            pendMaxX = x;
+        }
+        if (y > pendMaxY) {
+            pendMaxY = y;
+        }
         if (x < minX) {
             minX = x;
         }

@@ -168,6 +168,11 @@ public final class Editor {
             rasterizer.addPoint(x, y, pressure);
         }
 
+        /** @return what changed since the previous call of this method, or empty */
+        public Rect takeChanged() {
+            return rasterizer.takeChanged();
+        }
+
         /** @return the rectangle changed so far by this stroke, or empty */
         public Rect getDirty() {
             return rasterizer.getDirty();

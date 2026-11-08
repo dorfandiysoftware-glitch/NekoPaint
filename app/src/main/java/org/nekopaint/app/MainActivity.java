@@ -5,7 +5,6 @@ import android.content.Intent;
 import android.content.res.ColorStateList;
 import android.graphics.Bitmap;
 import android.graphics.Color;
-import android.graphics.drawable.Drawable;
 import android.net.Uri;
 import android.os.Bundle;
 import android.view.Gravity;
@@ -21,7 +20,6 @@ import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
 
-import com.google.android.material.appbar.MaterialToolbar;
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.button.MaterialButtonToggleGroup;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
@@ -39,7 +37,14 @@ import nekopaint.core.OpenRaster;
 public class MainActivity extends AppCompatActivity {
 
     private CanvasView canvas;
-    private MaterialToolbar toolbar;
+    private View undoButton;
+    private View redoButton;
+    private MaterialButton layersButton;
+    private BrushPreview preview;
+    private TextView sizeValue;
+    private TextView flowValue;
+    private Slider sizeSlider;
+    private Slider flowSlider;
     private MaterialButton colorButton;
     private View layersPanel;
     private LinearLayout layerList;
@@ -62,7 +67,12 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
 
         canvas = findViewById(R.id.canvas);
-        toolbar = findViewById(R.id.toolbar);
+        undoButton = findViewById(R.id.btn_undo);
+        redoButton = findViewById(R.id.btn_redo);
+        layersButton = findViewById(R.id.layers_button);
+        preview = findViewById(R.id.brush_preview);
+        sizeValue = findViewById(R.id.size_value);
+        flowValue = findViewById(R.id.flow_value);
         colorButton = findViewById(R.id.color_button);
         layersPanel = findViewById(R.id.layers_panel);
         layerList = findViewById(R.id.layer_list);
@@ -76,16 +86,9 @@ public class MainActivity extends AppCompatActivity {
         openFile = registerForActivityResult(new ActivityResultContracts.OpenDocument(),
                 this::openUri);
 
-        toolbar.inflateMenu(R.menu.main);
-        toolbar.setNavigationOnClickListener(this::showMainMenu);
-        toolbar.setOnMenuItemClickListener(item -> {
-            if (item.getItemId() == R.id.action_undo) {
-                canvas.undo();
-            } else if (item.getItemId() == R.id.action_redo) {
-                canvas.redo();
-            }
-            return true;
-        });
+        findViewById(R.id.btn_menu).setOnClickListener(this::showMainMenu);
+        undoButton.setOnClickListener(v -> canvas.undo());
+        redoButton.setOnClickListener(v -> canvas.redo());
         canvas.setListener(this::updateHistoryButtons);
         updateHistoryButtons();
 
@@ -97,12 +100,15 @@ public class MainActivity extends AppCompatActivity {
                     }
                 });
 
-        Slider size = findViewById(R.id.size);
-        canvas.setRadius(size.getValue());
-        size.addOnChangeListener((s, value, fromUser) -> canvas.setRadius(value));
-        Slider flow = findViewById(R.id.flow);
-        canvas.setFlow(flow.getValue() / 100f);
-        flow.addOnChangeListener((s, value, fromUser) -> canvas.setFlow(value / 100f));
+        sizeSlider = findViewById(R.id.size);
+        flowSlider = findViewById(R.id.flow);
+        sizeSlider.addOnChangeListener((sl, value, fromUser) -> applyBrushSettings());
+        flowSlider.addOnChangeListener((sl, value, fromUser) -> applyBrushSettings());
+        findViewById(R.id.size_minus).setOnClickListener(v -> nudge(sizeSlider, -1));
+        findViewById(R.id.size_plus).setOnClickListener(v -> nudge(sizeSlider, 1));
+        findViewById(R.id.flow_minus).setOnClickListener(v -> nudge(flowSlider, -1));
+        findViewById(R.id.flow_plus).setOnClickListener(v -> nudge(flowSlider, 1));
+        applyBrushSettings();
 
         showColor();
         colorButton.setOnClickListener(v -> pickColor());
@@ -160,26 +166,32 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void updateHistoryButtons() {
-        setMenuEnabled(R.id.action_undo, canvas.canUndo());
-        setMenuEnabled(R.id.action_redo, canvas.canRedo());
+        undoButton.setEnabled(canvas.canUndo());
+        redoButton.setEnabled(canvas.canRedo());
+        layersButton.setText(String.valueOf(canvas.getDocument().getLayerCount()));
     }
 
-    private void setMenuEnabled(int id, boolean enabled) {
-        android.view.MenuItem item = toolbar.getMenu().findItem(id);
-        if (item == null) {
-            return;
-        }
-        item.setEnabled(enabled);
-        Drawable icon = item.getIcon();
-        if (icon != null) {
-            icon.mutate().setAlpha(enabled ? 255 : 90);
-        }
+    private void nudge(Slider slider, float delta) {
+        float v = Math.max(slider.getValueFrom(), Math.min(slider.getValueTo(),
+                slider.getValue() + delta));
+        slider.setValue(v);
+    }
+
+    private void applyBrushSettings() {
+        canvas.setRadius(sizeSlider.getValue());
+        canvas.setFlow(flowSlider.getValue() / 100f);
+        sizeValue.setText(String.valueOf((int) sizeSlider.getValue()));
+        flowValue.setText(String.valueOf((int) flowSlider.getValue()));
+        preview.setBrush(canvas.getColor(), sizeSlider.getValue() / sizeSlider.getValueTo());
     }
 
     // ------------------------------------------------------------------ colour
 
     private void showColor() {
         colorButton.setBackgroundTintList(ColorStateList.valueOf(0xFF000000 | canvas.getColor()));
+        if (preview != null && sizeSlider != null) {
+            applyBrushSettings();
+        }
     }
 
     private void pickColor() {
@@ -287,6 +299,7 @@ public class MainActivity extends AppCompatActivity {
 
     private void rebuildLayerPanel() {
         Document doc = canvas.getDocument();
+        layersButton.setText(String.valueOf(doc.getLayerCount()));
         updatingPanel = true;
         layerList.removeAllViews();
         // Show the top layer first, like most painting apps.
