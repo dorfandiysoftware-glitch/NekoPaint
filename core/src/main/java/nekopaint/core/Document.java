@@ -34,6 +34,22 @@ public final class Document {
         return layer;
     }
 
+    /** Removes a layer; a document always keeps at least one. */
+    public void removeLayer(int index) {
+        if (layers.size() <= 1) {
+            throw new IllegalStateException("A document needs at least one layer");
+        }
+        layers.remove(index);
+    }
+
+    /** Moves a layer to another position in the stack (0 is the bottom). */
+    public void moveLayer(int from, int to) {
+        if (to < 0 || to >= layers.size()) {
+            throw new IndexOutOfBoundsException("Bad target position: " + to);
+        }
+        layers.add(to, layers.remove(from));
+    }
+
     public int getLayerCount() {
         return layers.size();
     }

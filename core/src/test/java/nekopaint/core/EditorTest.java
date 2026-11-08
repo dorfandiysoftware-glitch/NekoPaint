@@ -166,4 +166,59 @@ public class EditorTest {
         assertEquals(0, second.getPixel(15, 15));
         assertNotEquals(0, layer.getPixel(5, 5));
     }
+
+    @Test
+    public void longStrokeAcrossManyTilesUndoesExactly() {
+        Document big = new Document(300, 200);
+        Layer l = big.addLayer("x");
+        l.setPixel(150, 100, 0xFF00FF00);
+        Editor e = new Editor(big, 10);
+        int[] before = l.copyPixels();
+        Editor.Stroke s = e.beginStroke(0, new Brush(0x0000FF, 7f, 0.5f, 0.8f, 0.2f, false));
+        s.addPoint(5f, 5f, 1f);
+        s.addPoint(290f, 40f, 0.7f);
+        s.addPoint(20f, 190f, 1f);
+        s.end();
+        int[] after = l.copyPixels();
+        assertFalse(java.util.Arrays.equals(before, after));
+        assertTrue(e.undo());
+        assertArrayEquals(before, l.copyPixels());
+        assertTrue(e.redo());
+        assertArrayEquals(after, l.copyPixels());
+    }
+
+    @Test
+    public void eraserStrokeOverExistingPaintUndoesExactly() {
+        Document d = new Document(100, 100);
+        Layer l = d.addLayer("x");
+        Editor e = new Editor(d, 10);
+        Editor.Stroke paint = e.beginStroke(0, new Brush(0xFF0000, 20f, 1f, 1f, 0.1f, false));
+        paint.addPoint(50f, 50f, 1f);
+        paint.end();
+        int[] painted = l.copyPixels();
+        Editor.Stroke erase = e.beginStroke(0, Brush.eraser(10f));
+        erase.addPoint(40f, 50f, 1f);
+        erase.addPoint(60f, 50f, 1f);
+        erase.cancel();
+        assertArrayEquals(painted, l.copyPixels());
+    }
+
+    @Test
+    public void layerRemoveMoveAndClearHistory() {
+        Document d = new Document(4, 4);
+        d.addLayer("a").setPixel(0, 0, 0xFFFF0000);
+        d.addLayer("b").setPixel(0, 0, 0xFF0000FF);
+        d.moveLayer(0, 1);
+        assertEquals("b", d.getLayer(0).getName());
+        d.removeLayer(0);
+        assertEquals(1, d.getLayerCount());
+        assertThrows(IllegalStateException.class, () -> d.removeLayer(0));
+        Editor e = new Editor(d, 5);
+        Editor.Stroke s = e.beginStroke(0, brush);
+        s.addPoint(2f, 2f, 1f);
+        s.end();
+        assertTrue(e.canUndo());
+        e.clearHistory();
+        assertFalse(e.canUndo());
+    }
 }
