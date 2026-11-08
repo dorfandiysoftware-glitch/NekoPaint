@@ -128,10 +128,15 @@ public final class StrokeRasterizer {
         float strength = brush.getFlow() * pressure;
         boolean erase = brush.isEraser();
         int rgb = brush.getRgb();
+        float rSq = r * r;
+        float innerSq = inner > 0f ? inner * inner : -1f;
+        // Inside the solid core every pixel gets the same value, so work it out only once.
+        int fullAlpha = Math.round(strength * 255f);
+        int fullSource = erase ? 0 : PixelOps.premultiply((fullAlpha << 24) | rgb);
 
         for (int y = y0; y <= y1; y++) {
             float dy = y + 0.5f - cy;
-            float rest = r * r - dy * dy;
+            float rest = rSq - dy * dy;
             if (rest <= 0f) {
                 continue;
             }
@@ -139,29 +144,52 @@ public final class StrokeRasterizer {
             float half = (float) Math.sqrt(rest);
             int xa = Math.max(x0, (int) Math.floor(cx - half - 0.5f));
             int xb = Math.min(x1, (int) Math.ceil(cx + half - 0.5f));
+            int coreA = 1;
+            int coreB = 0;
+            float coreRest = innerSq - dy * dy;
+            if (coreRest > 0f) {
+                float coreHalf = (float) Math.sqrt(coreRest);
+                coreA = (int) Math.ceil(cx - coreHalf - 0.5f);
+                coreB = (int) Math.floor(cx + coreHalf - 0.5f);
+            }
+            int rowStart = y * width;
+            int firstChanged = -1;
+            int lastChanged = -1;
             for (int x = xa; x <= xb; x++) {
-                float dx = x + 0.5f - cx;
-                float d = (float) Math.sqrt(dx * dx + dy * dy);
-                if (d >= r) {
-                    continue;
+                int a;
+                int source;
+                if (x >= coreA && x <= coreB) {
+                    a = fullAlpha;
+                    source = fullSource;
+                } else {
+                    float dx = x + 0.5f - cx;
+                    float d = (float) Math.sqrt(dx * dx + dy * dy);
+                    if (d >= r) {
+                        continue;
+                    }
+                    float coverage = d <= inner ? 1f : (r - d) / fall;
+                    a = Math.round(coverage * strength * 255f);
+                    source = erase ? 0 : PixelOps.premultiply((a << 24) | rgb);
                 }
-                float coverage = d <= inner ? 1f : (r - d) / fall;
-                int a = Math.round(coverage * strength * 255f);
                 if (a <= 0) {
                     continue;
                 }
-                int index = y * width + x;
+                int index = rowStart + x;
                 int old = pixels[index];
-                int result;
-                if (erase) {
-                    result = PixelOps.scale(old, 255 - a);
-                } else {
-                    result = BlendMode.NORMAL.blend(PixelOps.premultiply((a << 24) | rgb), old);
-                }
+                int result = erase
+                        ? PixelOps.scale(old, 255 - a)
+                        : BlendMode.NORMAL.blend(source, old);
                 if (result != old) {
                     pixels[index] = result;
-                    markDirty(x, y);
+                    if (firstChanged < 0) {
+                        firstChanged = x;
+                    }
+                    lastChanged = x;
                 }
+            }
+            if (firstChanged >= 0) {
+                markDirty(firstChanged, y);
+                markDirty(lastChanged, y);
             }
         }
     }

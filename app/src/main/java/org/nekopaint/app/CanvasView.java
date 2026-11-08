@@ -33,7 +33,7 @@ public class CanvasView extends View {
     }
 
     private static final int PAPER = 0xFFFFFFFF;
-    private static final int TILE = 256;
+    private static final int TILE = 128;
     private static final int MAX_HISTORY = 50;
 
     private final Paint tilePaint = new Paint(Paint.FILTER_BITMAP_FLAG);

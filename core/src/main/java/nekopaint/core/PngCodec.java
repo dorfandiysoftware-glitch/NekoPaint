@@ -49,6 +49,12 @@ public final class PngCodec {
      */
     public static void encode(int width, int height, int[] pixels, OutputStream out)
             throws IOException {
+        encode(width, height, pixels, out, 6);
+    }
+
+    /** Like {@link #encode(int, int, int[], OutputStream)} with a chosen zlib level 1..9. */
+    public static void encode(int width, int height, int[] pixels, OutputStream out, int level)
+            throws IOException {
         Layer.checkSize(width, height);
         if (pixels.length != width * height) {
             throw new IllegalArgumentException("Pixel count does not match the size");
@@ -61,7 +67,7 @@ public final class PngCodec {
         header[9] = 6; // RGBA
         writeChunk(out, "IHDR", header, 0, header.length);
 
-        Deflater deflater = new Deflater(6);
+        Deflater deflater = new Deflater(level);
         ByteArrayOutputStream compressed = new ByteArrayOutputStream();
         byte[] row = new byte[1 + width * 4];
         byte[] buffer = new byte[65536];

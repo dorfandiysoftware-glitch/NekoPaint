@@ -102,10 +102,18 @@ public final class Document {
                 int src = (rect.top + y) * width + rect.left;
                 int dst = y * w;
                 for (int x = 0; x < w; x++) {
-                    int s = PixelOps.scale(source[src + x], opacity);
-                    if (PixelOps.alpha(s) != 0) {
-                        out[dst + x] = mode.blend(s, out[dst + x]);
+                    int s = source[src + x];
+                    if (s == 0) {
+                        continue;
                     }
+                    if (opacity != 255) {
+                        s = PixelOps.scale(s, opacity);
+                        if (PixelOps.alpha(s) == 0) {
+                            continue;
+                        }
+                    }
+                    out[dst + x] = (s >>> 24) == 255 && mode == BlendMode.NORMAL
+                            ? s : mode.blend(s, out[dst + x]);
                 }
             }
         }

@@ -24,6 +24,7 @@ public final class Editor {
     private final ArrayDeque<Edit> redoStack = new ArrayDeque<Edit>();
     private Stroke activeStroke;
     private Rect lastChanged = Rect.EMPTY;
+    private ProjectLog log;
 
     /**
      * @param maxHistory how many edits to remember; at least 1
@@ -39,6 +40,75 @@ public final class Editor {
 
     public Document getDocument() {
         return document;
+    }
+
+    /** The recording of this drawing, or null if nothing is being recorded. */
+    public ProjectLog getLog() {
+        return log;
+    }
+
+    /** Starts (or stops, with null) recording strokes and layer changes. */
+    public void setLog(ProjectLog log) {
+        this.log = log;
+    }
+
+    // ------------------------------------------------------------------ layers
+
+    /**
+     * Adds a transparent layer at a position (0 is the bottom). Not undoable: the undo history
+     * is cleared.
+     */
+    public Layer addLayer(String name, int at) {
+        requireNoStroke();
+        Layer layer = document.addLayer(name);
+        int target = Math.max(0, Math.min(at, document.getLayerCount() - 1));
+        document.moveLayer(document.getLayerCount() - 1, target);
+        clearHistory();
+        if (log != null) {
+            log.addOp(ProjectLog.ADD_LAYER, target, 0, name);
+        }
+        return layer;
+    }
+
+    /** Removes a layer (the last one cannot be removed). Clears the undo history. */
+    public void removeLayer(int index) {
+        requireNoStroke();
+        document.removeLayer(index);
+        clearHistory();
+        if (log != null) {
+            log.addOp(ProjectLog.REMOVE_LAYER, index, 0, null);
+        }
+    }
+
+    /** Moves a layer in the stack. Clears the undo history. */
+    public void moveLayer(int from, int to) {
+        requireNoStroke();
+        document.moveLayer(from, to);
+        clearHistory();
+        if (log != null) {
+            log.addOp(ProjectLog.MOVE_LAYER, from, to, null);
+        }
+    }
+
+    public void setLayerVisible(int index, boolean visible) {
+        document.getLayer(index).setVisible(visible);
+        if (log != null) {
+            log.addOp(ProjectLog.VISIBLE, index, visible ? 1 : 0, null);
+        }
+    }
+
+    public void setLayerOpacity(int index, int opacity) {
+        document.getLayer(index).setOpacity(opacity);
+        if (log != null) {
+            log.addOp(ProjectLog.OPACITY, index, opacity, null);
+        }
+    }
+
+    public void setLayerBlendMode(int index, BlendMode mode) {
+        document.getLayer(index).setBlendMode(mode);
+        if (log != null) {
+            log.addOp(ProjectLog.BLEND, index, mode.ordinal(), null);
+        }
     }
 
     /**
@@ -93,6 +163,9 @@ public final class Editor {
         }
         document.getLayer(edit.layerIndex).pasteRect(edit.rect, edit.before);
         lastChanged = edit.rect;
+        if (log != null && edit.event != null) {
+            log.remove(edit.event);
+        }
         redoStack.addLast(edit);
         return true;
     }
@@ -111,6 +184,9 @@ public final class Editor {
         }
         document.getLayer(edit.layerIndex).pasteRect(edit.rect, edit.after);
         lastChanged = edit.rect;
+        if (log != null && edit.event != null) {
+            log.restore(edit.event);
+        }
         undoStack.addLast(edit);
         return true;
     }
@@ -135,6 +211,9 @@ public final class Editor {
                 new java.util.HashMap<Integer, int[]>();
         private final StrokeRasterizer rasterizer;
         private final float radius;
+        private final Brush brush;
+        private float[] recorded = new float[192];
+        private int recordedCount;
         private boolean hasLast;
         private float lastX;
         private float lastY;
@@ -145,6 +224,7 @@ public final class Editor {
             this.layer = layer;
             this.tilesAcross = (layer.getWidth() + TILE - 1) / TILE;
             this.radius = brush.getRadius();
+            this.brush = brush;
             this.rasterizer = new StrokeRasterizer(layer, brush);
         }
 
@@ -164,8 +244,22 @@ public final class Editor {
                 hasLast = true;
                 lastX = x;
                 lastY = y;
+                if (log != null) {
+                    record(x, y, Float.isNaN(pressure) ? 0f
+                            : Math.max(0f, Math.min(1f, pressure)));
+                }
             }
             rasterizer.addPoint(x, y, pressure);
+        }
+
+        private void record(float x, float y, float p) {
+            if (recordedCount * 3 + 3 > recorded.length) {
+                recorded = java.util.Arrays.copyOf(recorded, recorded.length * 2);
+            }
+            recorded[recordedCount * 3] = x;
+            recorded[recordedCount * 3 + 1] = y;
+            recorded[recordedCount * 3 + 2] = p;
+            recordedCount++;
         }
 
         /** @return what changed since the previous call of this method, or empty */
@@ -187,8 +281,10 @@ public final class Editor {
             if (dirty.isEmpty()) {
                 return;
             }
+            ProjectLog.Event event = log == null
+                    ? null : log.addStroke(layerIndex, brush, recorded, recordedCount);
             Edit edit = new Edit(layerIndex, dirty, originalPixels(dirty),
-                    layer.copyRect(dirty));
+                    layer.copyRect(dirty), event);
             undoStack.addLast(edit);
             redoStack.clear();
             while (undoStack.size() > maxHistory) {
@@ -272,8 +368,10 @@ public final class Editor {
         final Rect rect;
         final int[] before;
         final int[] after;
+        final ProjectLog.Event event;
 
-        Edit(int layerIndex, Rect rect, int[] before, int[] after) {
+        Edit(int layerIndex, Rect rect, int[] before, int[] after, ProjectLog.Event event) {
+            this.event = event;
             this.layerIndex = layerIndex;
             this.rect = rect;
             this.before = before;
