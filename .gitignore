@@ -1,0 +1,19 @@
+# Build output
+build/
+.gradle/
+*.class
+
+# IDE
+.idea/
+*.iml
+local.properties
+captures/
+
+# Android packages and signing material: never commit keys
+*.apk
+*.aab
+*.keystore
+*.jks
+
+# Secrets
+.env
