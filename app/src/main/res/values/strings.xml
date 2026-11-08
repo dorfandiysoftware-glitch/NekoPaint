@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">NekoPaint</string>
+    <string name="undo">Undo</string>
+    <string name="redo">Redo</string>
+    <string name="brush">Brush</string>
+    <string name="eraser">Eraser</string>
+    <string name="size">Size</string>
+    <string name="color">Colour</string>
+    <string name="export_png">Save PNG</string>
+    <string name="clear">Clear canvas</string>
+    <string name="saved">Saved</string>
+    <string name="save_failed">Could not save</string>
+</resources>

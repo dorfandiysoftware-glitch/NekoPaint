@@ -23,6 +23,7 @@ public final class Editor {
     private final ArrayDeque<Edit> undoStack = new ArrayDeque<Edit>();
     private final ArrayDeque<Edit> redoStack = new ArrayDeque<Edit>();
     private Stroke activeStroke;
+    private Rect lastChanged = Rect.EMPTY;
 
     /**
      * @param maxHistory how many edits to remember; at least 1
@@ -57,6 +58,11 @@ public final class Editor {
         return activeStroke;
     }
 
+    /** @return the area changed by the latest successful undo or redo, or empty */
+    public Rect getLastChanged() {
+        return lastChanged;
+    }
+
     public boolean canUndo() {
         return !undoStack.isEmpty();
     }
@@ -78,6 +84,7 @@ public final class Editor {
             return false;
         }
         document.getLayer(edit.layerIndex).pasteRect(edit.rect, edit.before);
+        lastChanged = edit.rect;
         redoStack.addLast(edit);
         return true;
     }
@@ -95,6 +102,7 @@ public final class Editor {
             return false;
         }
         document.getLayer(edit.layerIndex).pasteRect(edit.rect, edit.after);
+        lastChanged = edit.rect;
         undoStack.addLast(edit);
         return true;
     }
@@ -133,6 +141,11 @@ public final class Editor {
         public void addPoint(float x, float y, float pressure) {
             requireActive();
             rasterizer.addPoint(x, y, pressure);
+        }
+
+        /** @return the rectangle changed so far by this stroke, or empty */
+        public Rect getDirty() {
+            return rasterizer.getDirty();
         }
 
         /** Finishes the stroke and records it in the history if it changed anything. */

@@ -132,4 +132,22 @@ public class DocumentTest {
         assertEquals(new Rect(0, 0, 8, 6), a.union(new Rect(0, 0, 8, 3)));
         assertThrows(IllegalArgumentException.class, () -> new Rect(5, 0, 1, 1));
     }
+
+    @Test
+    public void flattenRectMatchesTheSameAreaOfFullFlatten() {
+        Document doc = new Document(5, 4);
+        doc.addLayer("a").setPixel(2, 1, 0xFFFF0000);
+        Layer top = doc.addLayer("b");
+        top.setPixel(3, 2, 0x80008000);
+        top.setOpacity(200);
+        int[] full = doc.flatten(0xFFFFFFFF);
+        Rect r = new Rect(1, 1, 4, 3);
+        int[] part = doc.flattenRect(r, 0xFFFFFFFF);
+        for (int y = 0; y < r.height(); y++) {
+            for (int x = 0; x < r.width(); x++) {
+                assertEquals(full[(r.top + y) * 5 + r.left + x], part[y * r.width() + x]);
+            }
+        }
+        assertThrows(IllegalArgumentException.class, () -> doc.flattenRect(new Rect(0, 0, 6, 1), 0));
+    }
 }

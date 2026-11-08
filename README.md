@@ -3,7 +3,8 @@
 A free, open-source drawing app for Android with a Material 3 design, in the spirit of
 full-featured painting apps.
 
-> **Status: very early.** Only the drawing core exists so far. There is no app yet.
+> **Status: very early.** A drawing core and a minimal Android app (one layer, brush, eraser,
+> colour, undo/redo, pinch-zoom, PNG export). Layers UI, project files and more brushes come next.
 
 ## Principles
 
@@ -18,6 +19,7 @@ full-featured painting apps.
 | Path | What it is |
 | --- | --- |
 | `core/` | Drawing engine in plain Java with no Android dependencies, tested on a normal JVM |
+| `app/` | Android app (Material 3, minSdk 26) |
 
 The core currently has:
 
@@ -35,7 +37,10 @@ Requires JDK 8 or newer and Gradle.
 
 ```
 gradle :core:test
+gradle :app:assembleDebug
 ```
+
+Every push is built by GitHub Actions; the debug APK is attached to the run as an artifact.
 
 ## Other apps
 

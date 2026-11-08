@@ -55,7 +55,22 @@ public final class Document {
      * @return premultiplied ARGB pixels, row by row
      */
     public int[] flatten(int backgroundArgb) {
-        int[] out = new int[width * height];
+        return flattenRect(new Rect(0, 0, width, height), backgroundArgb);
+    }
+
+    /**
+     * Like {@link #flatten(int)} but only for one rectangle of the canvas.
+     *
+     * @return premultiplied ARGB pixels of the rectangle, row by row
+     * @throws IllegalArgumentException if the rectangle is not inside the canvas
+     */
+    public int[] flattenRect(Rect rect, int backgroundArgb) {
+        if (rect.left < 0 || rect.top < 0 || rect.right > width || rect.bottom > height) {
+            throw new IllegalArgumentException("Rectangle outside the canvas: " + rect);
+        }
+        int w = rect.width();
+        int h = rect.height();
+        int[] out = new int[w * h];
         int background = PixelOps.premultiply(backgroundArgb);
         if (background != 0) {
             Arrays.fill(out, background);
@@ -67,10 +82,14 @@ public final class Document {
             }
             int[] source = layer.pixels();
             BlendMode mode = layer.getBlendMode();
-            for (int i = 0; i < out.length; i++) {
-                int s = PixelOps.scale(source[i], opacity);
-                if (PixelOps.alpha(s) != 0) {
-                    out[i] = mode.blend(s, out[i]);
+            for (int y = 0; y < h; y++) {
+                int src = (rect.top + y) * width + rect.left;
+                int dst = y * w;
+                for (int x = 0; x < w; x++) {
+                    int s = PixelOps.scale(source[src + x], opacity);
+                    if (PixelOps.alpha(s) != 0) {
+                        out[dst + x] = mode.blend(s, out[dst + x]);
+                    }
                 }
             }
         }
