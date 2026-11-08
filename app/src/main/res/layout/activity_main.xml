@@ -230,7 +230,7 @@
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/layers_button"
-                    style="?attr/materialButtonTonalStyle"
+                    style="@style/Widget.Material3.Button.TonalButton"
                     android:layout_width="wrap_content"
                     android:layout_height="48dp"
                     android:contentDescription="@string/layers"
