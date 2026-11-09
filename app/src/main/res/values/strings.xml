@@ -74,4 +74,13 @@
     <string name="info_folder">Folder: %1$s</string>
     <string name="share_failed">Could not prepare the picture</string>
     <string name="no_timelapse">This drawing has no time-lapse recorded</string>
+    <string name="next">Next</string>
+    <string name="setup_theme_title">Choose a theme</string>
+    <string name="setup_theme_desc">Follow your phone, or pick light or dark. You can change it later in settings.</string>
+    <string name="setup_ui_title">Choose the interface</string>
+    <string name="setup_ui_m3">Material 3</string>
+    <string name="setup_ui_m3_desc">The default look with rounded Material You controls.</string>
+    <string name="setup_size_title">Canvas size</string>
+    <string name="setup_size_desc">The size used for new drawings. You can pick another size every time you create a drawing.</string>
+    <string name="setup_done_title">All set</string>
 </resources>

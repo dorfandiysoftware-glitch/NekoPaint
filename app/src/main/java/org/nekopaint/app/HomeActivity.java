@@ -19,9 +19,7 @@ public class HomeActivity extends AppCompatActivity {
         }
         setContentView(R.layout.activity_home);
         findViewById(R.id.home_settings).setOnClickListener(v -> {
-            Intent i = new Intent(this, SetupActivity.class);
-            i.putExtra(SetupActivity.EXTRA_SETTINGS, true);
-            startActivity(i);
+            startActivity(new Intent(this, SettingsActivity.class));
         });
         findViewById(R.id.home_gallery).setOnClickListener(
                 v -> startActivity(new Intent(this, GalleryActivity.class)));

@@ -7,36 +7,42 @@
     android:orientation="vertical"
     android:background="?attr/colorSurface">
 
-    <FrameLayout
+    <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="56dp">
+        android:layout_height="56dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="4dp"
+        android:paddingEnd="8dp">
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/gallery_back"
             style="?attr/materialIconButtonStyle"
             android:layout_width="48dp"
             android:layout_height="48dp"
-            android:layout_gravity="start|center_vertical"
-            android:layout_marginStart="4dp"
             android:contentDescription="@string/back"
             app:icon="@drawable/ic_back" />
 
         <TextView
             android:id="@+id/gallery_title"
-            android:layout_width="wrap_content"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_gravity="center"
-            android:textAppearance="?attr/textAppearanceTitleLarge" />
+            android:layout_weight="1"
+            android:ellipsize="end"
+            android:gravity="center"
+            android:maxLines="1"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
+            android:textAppearance="?attr/textAppearanceTitleMedium" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/gallery_select"
             style="?attr/materialButtonOutlinedStyle"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_gravity="end|center_vertical"
-            android:layout_marginEnd="8dp"
+            android:minWidth="0dp"
             android:text="@string/select" />
-    </FrameLayout>
+    </LinearLayout>
 
     <FrameLayout
         android:layout_width="match_parent"
@@ -71,15 +77,16 @@
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/gallery_new"
-            style="?attr/materialIconButtonFilledStyle"
+            style="?attr/materialIconButtonFilledTonalStyle"
             android:layout_width="48dp"
             android:layout_height="48dp"
+            android:layout_marginEnd="8dp"
             android:contentDescription="@string/new_drawing"
             app:icon="@drawable/ic_add" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/gallery_info"
-            style="?attr/materialIconButtonStyle"
+            style="?attr/materialIconButtonFilledTonalStyle"
             android:layout_width="48dp"
             android:layout_height="48dp"
             android:contentDescription="@string/info"
@@ -92,7 +99,7 @@
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/gallery_play"
-            style="?attr/materialIconButtonStyle"
+            style="?attr/materialIconButtonFilledTonalStyle"
             android:layout_width="48dp"
             android:layout_height="48dp"
             android:contentDescription="@string/timelapse"
@@ -100,9 +107,10 @@
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/gallery_share"
-            style="?attr/materialIconButtonStyle"
+            style="?attr/materialIconButtonFilledTonalStyle"
             android:layout_width="48dp"
             android:layout_height="48dp"
+            android:layout_marginStart="8dp"
             android:contentDescription="@string/share"
             app:icon="@drawable/ic_share" />
 
@@ -113,7 +121,7 @@
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/gallery_more"
-            style="?attr/materialIconButtonStyle"
+            style="?attr/materialIconButtonFilledTonalStyle"
             android:layout_width="48dp"
             android:layout_height="48dp"
             android:contentDescription="@string/menu"
@@ -121,9 +129,10 @@
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/gallery_edit"
-            style="?attr/materialIconButtonFilledStyle"
+            style="?attr/materialIconButtonFilledTonalStyle"
             android:layout_width="48dp"
             android:layout_height="48dp"
+            android:layout_marginStart="8dp"
             android:contentDescription="@string/edit"
             app:icon="@drawable/ic_edit" />
     </LinearLayout>

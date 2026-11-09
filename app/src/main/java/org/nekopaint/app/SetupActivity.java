@@ -4,37 +4,45 @@ package org.nekopaint.app;
 import android.content.Intent;
 import android.os.Bundle;
 import android.view.View;
-import android.widget.CompoundButton;
+import android.view.ViewGroup;
+import android.widget.LinearLayout;
+import android.widget.ViewFlipper;
 
+import androidx.activity.OnBackPressedCallback;
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.button.MaterialButtonToggleGroup;
+import com.google.android.material.card.MaterialCardView;
 
-/**
- * First-run setup, also used as the settings screen (with {@link #EXTRA_SETTINGS}): canvas
- * size, theme and the minimalist editor layout.
- */
+/** First-run setup, one question per page: welcome, theme, interface, canvas size, done. */
 public class SetupActivity extends AppCompatActivity {
 
-    static final String EXTRA_SETTINGS = "settings";
-
+    private ViewFlipper flipper;
+    private MaterialButton back;
+    private MaterialButton next;
+    private LinearLayout dots;
     private MaterialButton sizeButton;
+    private MaterialCardView uiM3;
+    private MaterialCardView uiMinimal;
+    private int page;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_setup);
-        final boolean settings = getIntent().getBooleanExtra(EXTRA_SETTINGS, false);
+        flipper = findViewById(R.id.wizard_flipper);
+        back = findViewById(R.id.wizard_back);
+        next = findViewById(R.id.wizard_next);
+        dots = findViewById(R.id.wizard_dots);
+        flipper.setInAnimation(this, android.R.anim.fade_in);
+        flipper.setOutAnimation(this, android.R.anim.fade_out);
+        if (savedInstanceState != null) {
+            page = savedInstanceState.getInt("page", 0);
+            flipper.setDisplayedChild(page);
+        }
 
-        sizeButton = findViewById(R.id.setup_size);
-        showSize();
-        sizeButton.setOnClickListener(v -> CanvasSizeDialog.show(this, Prefs.width(this),
-                Prefs.height(this), (w, h) -> {
-                    Prefs.setSize(this, w, h);
-                    showSize();
-                }));
-
+        // Theme
         MaterialButtonToggleGroup theme = findViewById(R.id.setup_theme);
         int current = Prefs.theme(this);
         theme.check(current == 1 ? R.id.theme_light
@@ -48,24 +56,89 @@ public class SetupActivity extends AppCompatActivity {
             NekoApp.applyTheme(mode);
         });
 
-        CompoundButton minimal = findViewById(R.id.setup_minimal);
-        minimal.setChecked(Prefs.minimalUi(this));
-        minimal.setOnCheckedChangeListener((b, on) -> Prefs.setMinimalUi(this, on));
+        // Interface
+        uiM3 = findViewById(R.id.ui_m3);
+        uiMinimal = findViewById(R.id.ui_minimal);
+        showUi(Prefs.minimalUi(this));
+        uiM3.setOnClickListener(v -> chooseUi(false));
+        uiMinimal.setOnClickListener(v -> chooseUi(true));
 
-        MaterialButton start = findViewById(R.id.setup_start);
-        if (settings) {
-            findViewById(R.id.setup_title).setVisibility(View.GONE);
-            findViewById(R.id.setup_intro).setVisibility(View.GONE);
-            findViewById(R.id.setup_note).setVisibility(View.GONE);
-            start.setText(R.string.done);
-            start.setOnClickListener(v -> finish());
-        } else {
-            start.setOnClickListener(v -> {
+        // Canvas size
+        sizeButton = findViewById(R.id.setup_size);
+        showSize();
+        sizeButton.setOnClickListener(v -> CanvasSizeDialog.show(this, Prefs.width(this),
+                Prefs.height(this), (w, h) -> {
+                    Prefs.setSize(this, w, h);
+                    showSize();
+                }));
+
+        back.setOnClickListener(v -> go(page - 1));
+        next.setOnClickListener(v -> {
+            if (page == flipper.getChildCount() - 1) {
                 Prefs.setSetupDone(this);
                 startActivity(new Intent(this, HomeActivity.class));
                 finish();
-            });
+            } else {
+                go(page + 1);
+            }
+        });
+        getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
+            @Override
+            public void handleOnBackPressed() {
+                if (page > 0) {
+                    go(page - 1);
+                } else {
+                    finish();
+                }
+            }
+        });
+        buildDots();
+        updateNav();
+    }
+
+    @Override
+    protected void onSaveInstanceState(Bundle out) {
+        super.onSaveInstanceState(out);
+        out.putInt("page", page);
+    }
+
+    private void go(int target) {
+        if (target < 0 || target >= flipper.getChildCount()) {
+            return;
         }
+        page = target;
+        flipper.setDisplayedChild(page);
+        updateNav();
+    }
+
+    private void updateNav() {
+        back.setVisibility(page == 0 ? View.INVISIBLE : View.VISIBLE);
+        next.setText(page == flipper.getChildCount() - 1 ? R.string.setup_start : R.string.next);
+        for (int i = 0; i < dots.getChildCount(); i++) {
+            dots.getChildAt(i).setAlpha(i == page ? 1f : 0.3f);
+        }
+    }
+
+    private void buildDots() {
+        int size = (int) (8 * getResources().getDisplayMetrics().density);
+        for (int i = 0; i < flipper.getChildCount(); i++) {
+            View dot = new View(this);
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(size, size);
+            lp.setMargins(size / 2, 0, size / 2, 0);
+            dot.setLayoutParams(lp);
+            dot.setBackgroundResource(R.drawable.wizard_dot);
+            dots.addView(dot);
+        }
+    }
+
+    private void chooseUi(boolean minimal) {
+        Prefs.setMinimalUi(this, minimal);
+        showUi(minimal);
+    }
+
+    private void showUi(boolean minimal) {
+        uiM3.setChecked(!minimal);
+        uiMinimal.setChecked(minimal);
     }
 
     private void showSize() {

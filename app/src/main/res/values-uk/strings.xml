@@ -73,4 +73,13 @@
     <string name="info_folder">Папка: %1$s</string>
     <string name="share_failed">Не вдалося підготувати зображення</string>
     <string name="no_timelapse">Для цього малюнка немає запису таймлапсу</string>
+    <string name="next">Далі</string>
+    <string name="setup_theme_title">Оберіть тему</string>
+    <string name="setup_theme_desc">Як на телефоні, світла або темна. Пізніше це можна змінити в налаштуваннях.</string>
+    <string name="setup_ui_title">Оберіть інтерфейс</string>
+    <string name="setup_ui_m3">Material 3</string>
+    <string name="setup_ui_m3_desc">Стандартний вигляд із заокругленими елементами Material You.</string>
+    <string name="setup_size_title">Розмір полотна</string>
+    <string name="setup_size_desc">Розмір для нових малюнків. Інший розмір можна обрати щоразу, коли створюєте малюнок.</string>
+    <string name="setup_done_title">Усе готово</string>
 </resources>

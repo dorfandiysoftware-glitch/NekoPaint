@@ -161,8 +161,8 @@ public final class Editor {
         if (edit == null) {
             return false;
         }
-        document.getLayer(edit.layerIndex).pasteRect(edit.rect, edit.before);
-        lastChanged = edit.rect;
+        edit.apply(document.getLayer(edit.layerIndex), edit.before);
+        lastChanged = edit.bounds;
         if (log != null && edit.event != null) {
             log.remove(edit.event);
         }
@@ -182,8 +182,8 @@ public final class Editor {
         if (edit == null) {
             return false;
         }
-        document.getLayer(edit.layerIndex).pasteRect(edit.rect, edit.after);
-        lastChanged = edit.rect;
+        edit.apply(document.getLayer(edit.layerIndex), edit.after);
+        lastChanged = edit.bounds;
         if (log != null && edit.event != null) {
             log.restore(edit.event);
         }
@@ -195,6 +195,17 @@ public final class Editor {
         if (activeStroke != null) {
             throw new IllegalStateException("A stroke is in progress");
         }
+    }
+
+    /** Upper limit for the memory the undo history may use (older entries are dropped). */
+    private static final long MAX_HISTORY_BYTES = 96L * 1024 * 1024;
+
+    private long historyBytes() {
+        long total = 0;
+        for (Edit e : undoStack) {
+            total += e.bytes();
+        }
+        return total;
     }
 
     /** Side length of the squares in which a stroke saves the original pixels. */
@@ -283,11 +294,14 @@ public final class Editor {
             }
             ProjectLog.Event event = log == null
                     ? null : log.addStroke(layerIndex, brush, recorded, recordedCount);
-            Edit edit = new Edit(layerIndex, dirty, originalPixels(dirty),
-                    layer.copyRect(dirty), event);
+            Edit edit = buildEdit(event);
+            if (edit == null) {
+                return;
+            }
             undoStack.addLast(edit);
             redoStack.clear();
-            while (undoStack.size() > maxHistory) {
+            while (undoStack.size() > maxHistory
+                    || (undoStack.size() > 1 && historyBytes() > MAX_HISTORY_BYTES)) {
                 undoStack.pollFirst();
             }
         }
@@ -297,9 +311,9 @@ public final class Editor {
             requireActive();
             finished = true;
             activeStroke = null;
-            Rect dirty = rasterizer.getDirty();
-            if (!dirty.isEmpty()) {
-                layer.pasteRect(dirty, originalPixels(dirty));
+            for (java.util.Map.Entry<Integer, int[]> e : savedTiles.entrySet()) {
+                int key = e.getKey();
+                layer.pasteRect(tileRectOf(key), e.getValue());
             }
         }
 
@@ -331,51 +345,84 @@ public final class Editor {
         }
 
         private Rect tileRect(int tx, int ty) {
-            return new Rect(tx * TILE, ty * TILE,
-                    Math.min(layer.getWidth(), (tx + 1) * TILE),
-                    Math.min(layer.getHeight(), (ty + 1) * TILE));
+            return tileRectOf(ty * tilesAcross + tx);
         }
 
-        /** Rebuilds the original pixels of a rectangle from the saved tiles. */
-        private int[] originalPixels(Rect rect) {
-            int w = rect.width();
-            int[] out = new int[w * rect.height()];
-            for (int ty = rect.top / TILE; ty <= (rect.bottom - 1) / TILE; ty++) {
-                for (int tx = rect.left / TILE; tx <= (rect.right - 1) / TILE; tx++) {
-                    int[] tile = savedTiles.get(ty * tilesAcross + tx);
-                    if (tile == null) {
-                        // Never touched by the brush, so the layer still holds the original.
-                        tile = layer.copyRect(tileRect(tx, ty));
-                    }
-                    Rect t = tileRect(tx, ty);
-                    int tw = t.width();
-                    int x0 = Math.max(rect.left, t.left);
-                    int x1 = Math.min(rect.right, t.right);
-                    int y0 = Math.max(rect.top, t.top);
-                    int y1 = Math.min(rect.bottom, t.bottom);
-                    for (int y = y0; y < y1; y++) {
-                        System.arraycopy(tile, (y - t.top) * tw + (x0 - t.left), out,
-                                (y - rect.top) * w + (x0 - rect.left), x1 - x0);
-                    }
+        private Rect tileRectOf(int key) {
+            return Editor.tileRect(key, tilesAcross, layer.getWidth(), layer.getHeight());
+        }
+
+        /** Keeps only the tiles that really changed: their original and final pixels. */
+        private Edit buildEdit(ProjectLog.Event event) {
+            int n = savedTiles.size();
+            int[] keys = new int[n];
+            int[][] before = new int[n][];
+            int[][] after = new int[n][];
+            int count = 0;
+            Rect bounds = Rect.EMPTY;
+            for (java.util.Map.Entry<Integer, int[]> e : savedTiles.entrySet()) {
+                int key = e.getKey();
+                Rect r = tileRectOf(key);
+                int[] now = layer.copyRect(r);
+                if (java.util.Arrays.equals(now, e.getValue())) {
+                    continue;
                 }
+                keys[count] = key;
+                before[count] = e.getValue();
+                after[count] = now;
+                count++;
+                bounds = bounds.union(r);
             }
-            return out;
+            if (count == 0) {
+                return null;
+            }
+            return new Edit(layerIndex, tilesAcross, java.util.Arrays.copyOf(keys, count),
+                    java.util.Arrays.copyOf(before, count), java.util.Arrays.copyOf(after, count),
+                    bounds, event);
         }
     }
 
-    private static final class Edit {
+    private static Rect tileRect(int key, int across, int width, int height) {
+        int tx = key % across;
+        int ty = key / across;
+        return new Rect(tx * TILE, ty * TILE, Math.min(width, (tx + 1) * TILE),
+                Math.min(height, (ty + 1) * TILE));
+    }
+
+    /** One history entry: the tiles a stroke changed, before and after. */
+    private final class Edit {
         final int layerIndex;
-        final Rect rect;
-        final int[] before;
-        final int[] after;
+        final int across;
+        final int[] keys;
+        final int[][] before;
+        final int[][] after;
+        final Rect bounds;
         final ProjectLog.Event event;
 
-        Edit(int layerIndex, Rect rect, int[] before, int[] after, ProjectLog.Event event) {
-            this.event = event;
+        Edit(int layerIndex, int across, int[] keys, int[][] before, int[][] after, Rect bounds,
+                ProjectLog.Event event) {
             this.layerIndex = layerIndex;
-            this.rect = rect;
+            this.across = across;
+            this.keys = keys;
             this.before = before;
             this.after = after;
+            this.bounds = bounds;
+            this.event = event;
+        }
+
+        long bytes() {
+            long n = 0;
+            for (int i = 0; i < keys.length; i++) {
+                n += (before[i].length + after[i].length) * 4L;
+            }
+            return n;
+        }
+
+        void apply(Layer layer, int[][] pixels) {
+            for (int i = 0; i < keys.length; i++) {
+                layer.pasteRect(tileRect(keys[i], across, layer.getWidth(), layer.getHeight()),
+                        pixels[i]);
+            }
         }
     }
 }

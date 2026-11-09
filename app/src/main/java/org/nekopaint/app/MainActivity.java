@@ -73,9 +73,15 @@ public class MainActivity extends AppCompatActivity {
         setContentView(minimal ? R.layout.activity_main_minimal : R.layout.activity_main);
 
         canvas = findViewById(R.id.canvas);
+        int backdrop = minimal ? 0xFFC0C0C0 : getColor(R.color.canvas_bg);
         if (minimal) {
-            canvas.setBackdropColor(0xFFC0C0C0);
+            canvas.setBackdropColor(backdrop);
         }
+        // The top bar sits on the canvas colour, so the status bar takes the same colour.
+        getWindow().setStatusBarColor(backdrop);
+        androidx.core.view.WindowCompat.getInsetsController(getWindow(),
+                getWindow().getDecorView()).setAppearanceLightStatusBars(
+                        androidx.core.graphics.ColorUtils.calculateLuminance(backdrop) > 0.5);
         undoButton = findViewById(R.id.btn_undo);
         redoButton = findViewById(R.id.btn_redo);
         layersButton = findViewById(R.id.layers_button);
