@@ -109,4 +109,12 @@
     <string name="fi_place">Location: %1$s</string>
     <string name="fi_size">Total size: %1$s (drawings: %2$d)</string>
     <string name="fi_data">Contents: %1$d files (drawings), %2$d folders</string>
+    <string name="select_all">Select all</string>
+    <string name="items_selected">%1$d selected</string>
+    <string name="move_to">Move to…</string>
+    <string name="move_up">Up one level</string>
+    <string name="move_failed">Could not move some drawings</string>
+    <string name="detail_title">Title: %1$s</string>
+    <string name="detail_changed">Changed: %1$s</string>
+    <string name="no_folders">No folders here. Create one with New → Folder.</string>
 </resources>

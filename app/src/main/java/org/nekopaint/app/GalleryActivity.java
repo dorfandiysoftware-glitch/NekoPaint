@@ -60,6 +60,15 @@ public class GalleryActivity extends AppCompatActivity {
     private View playButton;
     private View shareButton;
     private View editButton;
+    private View backButton;
+    private View selectAllButton;
+    private View detail;
+    private ImageView detailImage;
+    private TextView detailText;
+    private View barNormal;
+    private View barSelect;
+    /** The drawing opened from the grid (shown large with its information), or null. */
+    private GalleryStore.Item detailItem;
     private ActivityResultLauncher<Uri> pickFolder;
 
     @Override
@@ -74,6 +83,13 @@ public class GalleryActivity extends AppCompatActivity {
         playButton = findViewById(R.id.gallery_play);
         shareButton = findViewById(R.id.gallery_share);
         editButton = findViewById(R.id.gallery_edit);
+        backButton = findViewById(R.id.gallery_back);
+        selectAllButton = findViewById(R.id.gallery_select_all);
+        detail = findViewById(R.id.gallery_detail);
+        detailImage = findViewById(R.id.detail_image);
+        detailText = findViewById(R.id.detail_text);
+        barNormal = findViewById(R.id.gallery_bar);
+        barSelect = findViewById(R.id.gallery_bar_select);
 
         RecyclerView grid = findViewById(R.id.gallery_grid);
         int columns = Math.max(2, (int) (getResources().getDisplayMetrics().widthPixels
@@ -97,12 +113,37 @@ public class GalleryActivity extends AppCompatActivity {
                     }
                 });
         selectButton.setOnClickListener(v -> {
-            selectMode = !selectMode;
-            if (!selectMode && selected.size() > 1) {
+            if (selectMode) {
+                selectMode = false;
                 selected.clear();
+            } else {
+                // From the large view the opened drawing becomes the first selected one.
+                detailItem = null;
+                selectMode = true;
             }
             adapter.notifyDataSetChanged();
             updateUi();
+        });
+        selectAllButton.setOnClickListener(v -> {
+            if (selected.size() == items.size()) {
+                selected.clear();
+            } else {
+                for (GalleryStore.Item it : items) {
+                    selected.add(it.uri().toString());
+                }
+            }
+            adapter.notifyDataSetChanged();
+            updateUi();
+        });
+        findViewById(R.id.gallery_delete_sel).setOnClickListener(v -> {
+            if (!selected.isEmpty()) {
+                deleteSelected();
+            }
+        });
+        findViewById(R.id.gallery_move_sel).setOnClickListener(v -> {
+            if (!selected.isEmpty()) {
+                chooseMoveTarget();
+            }
         });
         findViewById(R.id.gallery_new).setOnClickListener(v -> newDrawing());
         findViewById(R.id.gallery_info).setOnClickListener(v -> showInfo());
@@ -179,6 +220,15 @@ public class GalleryActivity extends AppCompatActivity {
                 }
                 selected.clear();
                 selected.addAll(still);
+                if (detailItem != null) {
+                    GalleryStore.Item fresh = null;
+                    for (GalleryStore.Item it : items) {
+                        if (it.uri().toString().equals(detailItem.uri().toString())) {
+                            fresh = it;
+                        }
+                    }
+                    detailItem = fresh;
+                }
                 adapter.notifyDataSetChanged();
                 updateUi();
             });
@@ -190,6 +240,20 @@ public class GalleryActivity extends AppCompatActivity {
     }
 
     private void goBack() {
+        if (detailItem != null) {
+            detailItem = null;
+            selected.clear();
+            adapter.notifyDataSetChanged();
+            updateUi();
+            return;
+        }
+        if (selectMode) {
+            selectMode = false;
+            selected.clear();
+            adapter.notifyDataSetChanged();
+            updateUi();
+            return;
+        }
         if (path.isEmpty()) {
             finish();
             return;
@@ -200,16 +264,7 @@ public class GalleryActivity extends AppCompatActivity {
     }
 
     private GalleryStore.Item single() {
-        if (selected.size() != 1) {
-            return null;
-        }
-        String key = selected.iterator().next();
-        for (GalleryStore.Item it : items) {
-            if (it.uri().toString().equals(key)) {
-                return it;
-            }
-        }
-        return null;
+        return detailItem;
     }
 
     private List<GalleryStore.Item> selectedItems() {
@@ -223,17 +278,35 @@ public class GalleryActivity extends AppCompatActivity {
     }
 
     private void updateUi() {
-        if (path.isEmpty()) {
+        if (selectMode) {
+            title.setText(getString(R.string.items_selected, selected.size()));
+        } else if (path.isEmpty()) {
             title.setText(getString(R.string.gallery_title, items.size()));
         } else {
             title.setText(getString(R.string.folder_title, currentDir().getName(), items.size()));
         }
-        empty.setVisibility(items.isEmpty() && folders.isEmpty() ? View.VISIBLE : View.GONE);
+        empty.setVisibility(items.isEmpty() && folders.isEmpty() && detailItem == null
+                ? View.VISIBLE : View.GONE);
         selectButton.setText(selectMode ? R.string.done : R.string.select);
-        boolean one = selected.size() == 1;
-        playButton.setEnabled(one);
-        editButton.setEnabled(one);
-        shareButton.setEnabled(!selected.isEmpty());
+        backButton.setVisibility(selectMode ? View.GONE : View.VISIBLE);
+        selectAllButton.setVisibility(selectMode ? View.VISIBLE : View.GONE);
+        barNormal.setVisibility(selectMode ? View.GONE : View.VISIBLE);
+        barSelect.setVisibility(selectMode ? View.VISIBLE : View.GONE);
+
+        if (detailItem != null) {
+            detail.setVisibility(View.VISIBLE);
+            thumbs.load(detailItem, detailImage);
+            detailText.setText(getString(R.string.detail_title, detailItem.title()) + "\n"
+                    + getString(R.string.detail_changed, DateFormat.getMediumDateFormat(this)
+                            .format(new Date(detailItem.modified)) + " "
+                            + DateFormat.getTimeFormat(this).format(new Date(detailItem.modified))));
+        } else {
+            detail.setVisibility(View.GONE);
+        }
+        boolean opened = detailItem != null;
+        playButton.setEnabled(opened);
+        shareButton.setEnabled(opened);
+        editButton.setEnabled(opened);
     }
 
     // ------------------------------------------------------------------ actions
@@ -273,7 +346,6 @@ public class GalleryActivity extends AppCompatActivity {
     }
 
     private void importPicture(final Uri uri) {
-        Toast.makeText(this, "…", Toast.LENGTH_SHORT).show();
         new Thread(() -> {
             final Document doc = ImageImport.load(this, uri);
             runOnUiThread(() -> {
@@ -403,6 +475,8 @@ public class GalleryActivity extends AppCompatActivity {
                     }
                     runOnUiThread(() -> {
                         selected.clear();
+                        detailItem = null;
+                        selectMode = false;
                         refresh();
                     });
                 }, "gallery-delete").start())
@@ -475,7 +549,6 @@ public class GalleryActivity extends AppCompatActivity {
         if (sel.isEmpty()) {
             return;
         }
-        Toast.makeText(this, "…", Toast.LENGTH_SHORT).show();
         new Thread(() -> {
             final ArrayList<Uri> uris = new ArrayList<Uri>();
             try {
@@ -579,6 +652,7 @@ public class GalleryActivity extends AppCompatActivity {
                     selected.clear();
                     refresh();
                 });
+                fh.delete.setVisibility(selectMode ? View.VISIBLE : View.GONE);
                 fh.delete.setOnClickListener(v -> confirmDeleteFolder(f));
                 return;
             }
@@ -592,12 +666,17 @@ public class GalleryActivity extends AppCompatActivity {
             ((com.google.android.material.card.MaterialCardView) h.itemView).setStrokeWidth(
                     on ? (int) (3 * getResources().getDisplayMetrics().density) : 0);
             h.itemView.setOnClickListener(v -> {
+                if (!selectMode) {
+                    // A plain tap shows the drawing large, with its information.
+                    detailItem = it;
+                    selected.clear();
+                    selected.add(key);
+                    updateUi();
+                    return;
+                }
                 if (selected.contains(key)) {
                     selected.remove(key);
                 } else {
-                    if (!selectMode) {
-                        selected.clear();
-                    }
                     selected.add(key);
                 }
                 notifyDataSetChanged();
@@ -609,6 +688,46 @@ public class GalleryActivity extends AppCompatActivity {
         public int getItemCount() {
             return folders.size() + items.size();
         }
+    }
+
+    private void chooseMoveTarget() {
+        final List<DocumentFile> targets = new ArrayList<DocumentFile>();
+        final List<String> names = new ArrayList<String>();
+        if (!path.isEmpty()) {
+            targets.add(path.size() >= 2 ? path.get(path.size() - 2) : GalleryStore.root(this));
+            names.add(getString(R.string.move_up));
+        }
+        for (DocumentFile f : folders) {
+            targets.add(f);
+            names.add(f.getName());
+        }
+        if (targets.isEmpty()) {
+            Toast.makeText(this, R.string.no_folders, Toast.LENGTH_SHORT).show();
+            return;
+        }
+        new MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.move_to)
+                .setItems(names.toArray(new String[0]), (d, which) -> moveSelected(targets.get(which)))
+                .show();
+    }
+
+    private void moveSelected(final DocumentFile target) {
+        final List<GalleryStore.Item> sel = selectedItems();
+        new Thread(() -> {
+            boolean ok = true;
+            for (GalleryStore.Item it : sel) {
+                ok &= GalleryStore.move(this, it, target);
+            }
+            final boolean all = ok;
+            runOnUiThread(() -> {
+                if (!all) {
+                    Toast.makeText(this, R.string.move_failed, Toast.LENGTH_LONG).show();
+                }
+                selected.clear();
+                selectMode = false;
+                refresh();
+            });
+        }, "gallery-move").start();
     }
 
     private void confirmDeleteFolder(final DocumentFile f) {

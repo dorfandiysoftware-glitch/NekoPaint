@@ -108,4 +108,12 @@
     <string name="fi_place">Розташування: %1$s</string>
     <string name="fi_size">Загальний розмір: %1$s (малюнків: %2$d)</string>
     <string name="fi_data">Дані: %1$d файлів (малюнків), %2$d папок</string>
+    <string name="select_all">Вибрати все</string>
+    <string name="items_selected">Вибрано: %1$d</string>
+    <string name="move_to">Перемістити в…</string>
+    <string name="move_up">На рівень вище</string>
+    <string name="move_failed">Не вдалося перемістити деякі малюнки</string>
+    <string name="detail_title">Назва: %1$s</string>
+    <string name="detail_changed">Змінено: %1$s</string>
+    <string name="no_folders">Тут немає папок. Створи її через Новий → Папка.</string>
 </resources>

@@ -231,4 +231,46 @@ final class GalleryStore {
     static boolean deleteForever(Item item) {
         return item.file.delete();
     }
+
+    /** Moves a drawing into another folder by copying it and removing the original. */
+    static boolean move(Context c, Item item, DocumentFile target) {
+        String name = item.name;
+        String stem = name;
+        String ext = "";
+        int dot = name.lastIndexOf('.');
+        if (dot > 0) {
+            stem = name.substring(0, dot);
+            ext = name.substring(dot);
+        }
+        String free = name;
+        int n = 1;
+        while (target.findFile(free) != null) {
+            n++;
+            free = stem + " " + n + ext;
+        }
+        DocumentFile copy = target.createFile(
+                ext.equalsIgnoreCase(".png") ? "image/png" : "image/openraster", free);
+        if (copy == null) {
+            return false;
+        }
+        if (copy.getName() != null && !copy.getName().equals(free)) {
+            copy.renameTo(free);
+        }
+        try (java.io.InputStream in = c.getContentResolver().openInputStream(item.uri());
+                java.io.OutputStream out = c.getContentResolver().openOutputStream(copy.getUri(), "wt")) {
+            if (in == null || out == null) {
+                copy.delete();
+                return false;
+            }
+            byte[] buf = new byte[64 * 1024];
+            int r;
+            while ((r = in.read(buf)) > 0) {
+                out.write(buf, 0, r);
+            }
+        } catch (java.io.IOException | RuntimeException e) {
+            copy.delete();
+            return false;
+        }
+        return item.file.delete();
+    }
 }

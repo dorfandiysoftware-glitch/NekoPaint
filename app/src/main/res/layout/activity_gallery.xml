@@ -23,6 +23,15 @@
             android:contentDescription="@string/back"
             app:icon="@drawable/ic_back" />
 
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/gallery_select_all"
+            style="?attr/borderlessButtonStyle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:minWidth="0dp"
+            android:text="@string/select_all"
+            android:visibility="gone" />
+
         <TextView
             android:id="@+id/gallery_title"
             android:layout_width="0dp"
@@ -56,6 +65,37 @@
             android:clipToPadding="false"
             android:padding="8dp" />
 
+        <LinearLayout
+            android:id="@+id/gallery_detail"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="?attr/colorSurface"
+            android:orientation="vertical"
+            android:padding="16dp"
+            android:visibility="gone">
+
+            <FrameLayout
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1">
+
+                <ImageView
+                    android:id="@+id/detail_image"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:background="#FFFFFFFF"
+                    android:importantForAccessibility="no"
+                    android:scaleType="fitCenter" />
+            </FrameLayout>
+
+            <TextView
+                android:id="@+id/detail_text"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingTop="12dp"
+                android:textAppearance="?attr/textAppearanceBodyLarge" />
+        </LinearLayout>
+
         <TextView
             android:id="@+id/gallery_empty"
             android:layout_width="wrap_content"
@@ -68,6 +108,39 @@
     </FrameLayout>
 
     <LinearLayout
+        android:id="@+id/gallery_bar_select"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="?attr/colorSurfaceContainer"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:padding="8dp"
+        android:visibility="gone">
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/gallery_delete_sel"
+            style="?attr/materialIconButtonFilledTonalStyle"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:contentDescription="@string/delete"
+            app:icon="@drawable/ic_delete" />
+
+        <View
+            android:layout_width="0dp"
+            android:layout_height="1dp"
+            android:layout_weight="1" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/gallery_move_sel"
+            style="?attr/materialIconButtonFilledTonalStyle"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:contentDescription="@string/move_to"
+            app:icon="@drawable/ic_folder" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/gallery_bar"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:background="?attr/colorSurfaceContainer"
