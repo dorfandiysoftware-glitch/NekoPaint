@@ -112,7 +112,7 @@
     <string name="select_all">Select all</string>
     <string name="items_selected">%1$d selected</string>
     <string name="move_to">Move to…</string>
-    <string name="move_up">Up one level</string>
+    <string name="move_folder_up">Up one level</string>
     <string name="move_failed">Could not move some drawings</string>
     <string name="detail_title">Title: %1$s</string>
     <string name="detail_changed">Changed: %1$s</string>

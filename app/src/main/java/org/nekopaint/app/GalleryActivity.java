@@ -695,7 +695,7 @@ public class GalleryActivity extends AppCompatActivity {
         final List<String> names = new ArrayList<String>();
         if (!path.isEmpty()) {
             targets.add(path.size() >= 2 ? path.get(path.size() - 2) : GalleryStore.root(this));
-            names.add(getString(R.string.move_up));
+            names.add(getString(R.string.move_folder_up));
         }
         for (DocumentFile f : folders) {
             targets.add(f);
