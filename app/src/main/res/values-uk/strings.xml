@@ -33,8 +33,8 @@
     <string name="theme_system">Системна</string>
     <string name="theme_light">Світла</string>
     <string name="theme_dark">Темна</string>
-    <string name="setup_minimal">Мінімалістичний інтерфейс</string>
-    <string name="setup_minimal_hint">Простий вигляд, максимально схожий на ibis Paint. Якщо вимкнено, використовується інтерфейс Material 3.</string>
+    <string name="setup_minimal">Кольори Material 3</string>
+    <string name="setup_minimal_hint">Редактор мінімалістичний, як в ibis Paint. Увімкни, щоб замість класичних сірих кольорів були кольори Material 3.</string>
     <string name="setup_start">Почати</string>
     <string name="setup_note">NekoPaint не підключається до жодних онлайн-сервісів. Малюнки з інших застосунків можна додати як файли PNG або OpenRaster у папку галереї.</string>
     <string name="settings">Налаштування</string>
@@ -76,9 +76,9 @@
     <string name="next">Далі</string>
     <string name="setup_theme_title">Оберіть тему</string>
     <string name="setup_theme_desc">Як на телефоні, світла або темна. Пізніше це можна змінити в налаштуваннях.</string>
-    <string name="setup_ui_title">Оберіть інтерфейс</string>
-    <string name="setup_ui_m3">Material 3</string>
-    <string name="setup_ui_m3_desc">Стандартний вигляд із заокругленими елементами Material You.</string>
+    <string name="setup_ui_title">Мінімалістичний інтерфейс</string>
+    <string name="setup_ui_m3">Кольори Material 3</string>
+    <string name="setup_ui_m3_desc">Редактор завжди мінімалістичний, як в ibis Paint. Познач, щоб замість класичних сірих кольорів були кольори Material 3.</string>
     <string name="setup_size_title">Розмір полотна</string>
     <string name="setup_size_desc">Розмір для нових малюнків. Інший розмір можна обрати щоразу, коли створюєте малюнок.</string>
     <string name="setup_done_title">Усе готово</string>

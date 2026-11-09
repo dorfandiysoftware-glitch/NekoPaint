@@ -34,8 +34,8 @@
     <string name="theme_system">System</string>
     <string name="theme_light">Light</string>
     <string name="theme_dark">Dark</string>
-    <string name="setup_minimal">Minimalist interface</string>
-    <string name="setup_minimal_hint">A plain layout as close to ibis Paint as possible. If it is off, the Material 3 layout is used.</string>
+    <string name="setup_minimal">Material 3 colours</string>
+    <string name="setup_minimal_hint">The editor is minimalist, like ibis Paint. Turn this on to give it Material 3 colours instead of the classic grey ones.</string>
     <string name="setup_start">Start</string>
     <string name="setup_note">NekoPaint does not connect to any online service. Drawings from other apps can be brought in as PNG or OpenRaster files placed in the gallery folder.</string>
     <string name="settings">Settings</string>
@@ -77,9 +77,9 @@
     <string name="next">Next</string>
     <string name="setup_theme_title">Choose a theme</string>
     <string name="setup_theme_desc">Follow your phone, or pick light or dark. You can change it later in settings.</string>
-    <string name="setup_ui_title">Choose the interface</string>
-    <string name="setup_ui_m3">Material 3</string>
-    <string name="setup_ui_m3_desc">The default look with rounded Material You controls.</string>
+    <string name="setup_ui_title">Minimalist interface</string>
+    <string name="setup_ui_m3">Material 3 colours</string>
+    <string name="setup_ui_m3_desc">The editor is always minimalist, like ibis Paint. Tick this to use Material 3 colours instead of the classic grey ones.</string>
     <string name="setup_size_title">Canvas size</string>
     <string name="setup_size_desc">The size used for new drawings. You can pick another size every time you create a drawing.</string>
     <string name="setup_done_title">All set</string>

@@ -69,7 +69,7 @@ public class MainActivity extends AppCompatActivity {
             finish();
             return;
         }
-        boolean minimal = Prefs.minimalUi(this);
+        boolean minimal = !Prefs.md3Colors(this);
         setContentView(minimal ? R.layout.activity_main_minimal : R.layout.activity_main);
 
         canvas = findViewById(R.id.canvas);
@@ -240,6 +240,9 @@ public class MainActivity extends AppCompatActivity {
     private void updateHistoryButtons() {
         undoButton.setEnabled(canvas.canUndo());
         redoButton.setEnabled(canvas.canRedo());
+        // The flat tint of the minimalist layout does not change by itself when disabled.
+        undoButton.setAlpha(canvas.canUndo() ? 1f : 0.3f);
+        redoButton.setAlpha(canvas.canRedo() ? 1f : 0.3f);
         layersButton.setText(String.valueOf(canvas.getDocument().getLayerCount()));
     }
 

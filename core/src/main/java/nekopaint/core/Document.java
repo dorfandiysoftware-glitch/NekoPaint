@@ -81,16 +81,28 @@ public final class Document {
      * @throws IllegalArgumentException if the rectangle is not inside the canvas
      */
     public int[] flattenRect(Rect rect, int backgroundArgb) {
+        int[] out = new int[rect.width() * rect.height()];
+        flattenRect(rect, backgroundArgb, out);
+        return out;
+    }
+
+    /**
+     * Like {@link #flattenRect(Rect, int)} but writes into a buffer the caller keeps, so that
+     * drawing many small areas does not create garbage.
+     *
+     * @param out receives the pixels row by row; must hold at least width * height values
+     */
+    public void flattenRect(Rect rect, int backgroundArgb, int[] out) {
         if (rect.left < 0 || rect.top < 0 || rect.right > width || rect.bottom > height) {
             throw new IllegalArgumentException("Rectangle outside the canvas: " + rect);
         }
         int w = rect.width();
         int h = rect.height();
-        int[] out = new int[w * h];
-        int background = PixelOps.premultiply(backgroundArgb);
-        if (background != 0) {
-            Arrays.fill(out, background);
+        if (out == null || out.length < w * h) {
+            throw new IllegalArgumentException("Buffer too small");
         }
+        int background = PixelOps.premultiply(backgroundArgb);
+        Arrays.fill(out, 0, w * h, background);
         for (Layer layer : layers) {
             int opacity = layer.getOpacity();
             if (!layer.isVisible() || opacity == 0) {
@@ -117,6 +129,5 @@ public final class Document {
                 }
             }
         }
-        return out;
     }
 }

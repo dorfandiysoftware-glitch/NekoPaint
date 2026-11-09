@@ -43,7 +43,8 @@ public class CanvasView extends View {
     private final float[] point = new float[2];
     private final RectF tmp = new RectF();
     private final SparseArray<Bitmap> tiles = new SparseArray<Bitmap>();
-    private final SparseArray<Boolean> stale = new SparseArray<Boolean>();
+    /** Tiles whose picture is out of date, with the changed part {left, top, right, bottom}. */
+    private final SparseArray<int[]> stale = new SparseArray<int[]>();
     private final int[] scratch = new int[TILE * TILE];
     private final ScaleGestureDetector scaleDetector;
 
@@ -205,7 +206,7 @@ public class CanvasView extends View {
     public void layersChanged() {
         stale.clear();
         for (int i = 0; i < tiles.size(); i++) {
-            stale.put(tiles.keyAt(i), Boolean.TRUE);
+            stale.put(tiles.keyAt(i), new int[] {0, 0, TILE, TILE});
         }
         invalidate();
     }
@@ -263,8 +264,23 @@ public class CanvasView extends View {
         for (int ty = r.top / TILE; ty <= (r.bottom - 1) / TILE; ty++) {
             for (int tx = r.left / TILE; tx <= (r.right - 1) / TILE; tx++) {
                 int key = ty * tilesAcross + tx;
-                if (tiles.get(key) != null) {
-                    stale.put(key, Boolean.TRUE);
+                if (tiles.get(key) == null) {
+                    continue;
+                }
+                int ox = tx * TILE;
+                int oy = ty * TILE;
+                int l = Math.max(r.left - ox, 0);
+                int t = Math.max(r.top - oy, 0);
+                int rr = Math.min(r.right - ox, TILE);
+                int bb = Math.min(r.bottom - oy, TILE);
+                int[] old = stale.get(key);
+                if (old == null) {
+                    stale.put(key, new int[] {l, t, rr, bb});
+                } else {
+                    old[0] = Math.min(old[0], l);
+                    old[1] = Math.min(old[1], t);
+                    old[2] = Math.max(old[2], rr);
+                    old[3] = Math.max(old[3], bb);
                 }
             }
         }
@@ -283,8 +299,8 @@ public class CanvasView extends View {
     private Bitmap tileBitmap(int tx, int ty) {
         int key = ty * tilesAcross + tx;
         Bitmap b = tiles.get(key);
-        boolean rebuild = stale.get(key) != null;
-        if (b != null && !rebuild) {
+        int[] dirty = stale.get(key);
+        if (b != null && dirty == null) {
             return b;
         }
         int left = tx * TILE;
@@ -293,13 +309,24 @@ public class CanvasView extends View {
         int bottom = Math.min(document.getHeight(), top + TILE);
         int w = right - left;
         int h = bottom - top;
+        int l = 0;
+        int t = 0;
+        int r = w;
+        int bt = h;
         if (b == null) {
             b = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
             tiles.put(key, b);
+        } else {
+            // Only the part that really changed is flattened and copied.
+            l = Math.min(dirty[0], w);
+            t = Math.min(dirty[1], h);
+            r = Math.min(dirty[2], w);
+            bt = Math.min(dirty[3], h);
         }
-        int[] px = document.flattenRect(new Rect(left, top, right, bottom), PAPER);
-        System.arraycopy(px, 0, scratch, 0, px.length);
-        b.setPixels(scratch, 0, w, 0, 0, w, h);
+        if (r > l && bt > t) {
+            document.flattenRect(new Rect(left + l, top + t, left + r, top + bt), PAPER, scratch);
+            b.setPixels(scratch, 0, r - l, l, t, r - l, bt - t);
+        }
         stale.remove(key);
         return b;
     }

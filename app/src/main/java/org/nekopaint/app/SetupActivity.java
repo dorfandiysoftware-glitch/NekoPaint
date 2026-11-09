@@ -24,7 +24,6 @@ public class SetupActivity extends AppCompatActivity {
     private LinearLayout dots;
     private MaterialButton sizeButton;
     private MaterialCardView uiM3;
-    private MaterialCardView uiMinimal;
     private int page;
 
     @Override
@@ -58,10 +57,12 @@ public class SetupActivity extends AppCompatActivity {
 
         // Interface
         uiM3 = findViewById(R.id.ui_m3);
-        uiMinimal = findViewById(R.id.ui_minimal);
-        showUi(Prefs.minimalUi(this));
-        uiM3.setOnClickListener(v -> chooseUi(false));
-        uiMinimal.setOnClickListener(v -> chooseUi(true));
+        uiM3.setChecked(Prefs.md3Colors(this));
+        uiM3.setOnClickListener(v -> {
+            boolean on = !Prefs.md3Colors(this);
+            Prefs.setMd3Colors(this, on);
+            uiM3.setChecked(on);
+        });
 
         // Canvas size
         sizeButton = findViewById(R.id.setup_size);
@@ -129,16 +130,6 @@ public class SetupActivity extends AppCompatActivity {
             dot.setBackgroundResource(R.drawable.wizard_dot);
             dots.addView(dot);
         }
-    }
-
-    private void chooseUi(boolean minimal) {
-        Prefs.setMinimalUi(this, minimal);
-        showUi(minimal);
-    }
-
-    private void showUi(boolean minimal) {
-        uiM3.setChecked(!minimal);
-        uiMinimal.setChecked(minimal);
     }
 
     private void showSize() {

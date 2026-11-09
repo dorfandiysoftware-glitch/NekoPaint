@@ -168,6 +168,13 @@ final class GalleryStore {
                 continue;
             }
             String lower = name.toLowerCase(java.util.Locale.ROOT);
+            if (lower.endsWith(".ora.bin") && !trash) {
+                // Earlier versions saved drawings with a stray ".bin" ending; fix it.
+                if (f.renameTo(name.substring(0, name.length() - 4))) {
+                    name = name.substring(0, name.length() - 4);
+                    lower = lower.substring(0, lower.length() - 4);
+                }
+            }
             boolean deleted = lower.endsWith(TRASH);
             if (deleted != trash) {
                 continue;
@@ -194,7 +201,12 @@ final class GalleryStore {
             n++;
             name = baseName + " " + n + ".ora";
         }
-        return root.createFile("application/octet-stream", name);
+        // An unknown type keeps the name as it is; "octet-stream" would add ".bin" to it.
+        DocumentFile file = root.createFile("image/openraster", name);
+        if (file != null && file.getName() != null && !file.getName().equals(name)) {
+            file.renameTo(name);
+        }
+        return file;
     }
 
     static boolean softDelete(Item item) {

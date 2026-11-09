@@ -5,5 +5,12 @@
         <item name="android:navigationBarColor">?attr/colorSurface</item>
         <item name="android:windowLightStatusBar">true</item>
         <item name="android:windowLightNavigationBar">true</item>
+        <item name="popupMenuStyle">@style/NekoPopupMenu</item>
+        <item name="android:popupMenuStyle">@style/NekoPopupMenu</item>
+    </style>
+
+    <style name="NekoPopupMenu" parent="Widget.Material3.PopupMenu">
+        <item name="android:popupBackground">@drawable/popup_bg</item>
+        <item name="android:popupElevation">8dp</item>
     </style>
 </resources>

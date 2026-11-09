@@ -41,8 +41,8 @@ public class SettingsActivity extends AppCompatActivity {
         });
 
         CompoundButton minimal = findViewById(R.id.setup_minimal);
-        minimal.setChecked(Prefs.minimalUi(this));
-        minimal.setOnCheckedChangeListener((b, on) -> Prefs.setMinimalUi(this, on));
+        minimal.setChecked(Prefs.md3Colors(this));
+        minimal.setOnCheckedChangeListener((b, on) -> Prefs.setMd3Colors(this, on));
 
         findViewById(R.id.setup_start).setOnClickListener(v -> finish());
     }

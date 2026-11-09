@@ -183,7 +183,7 @@ final class NewDrawingDialog {
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
         row.setMinimumHeight(dp(60));
-        row.setPadding(dp(16), dp(4), dp(12), dp(4));
+        row.setPadding(dp(8), dp(4), dp(8), dp(4));
         android.util.TypedValue tv = new android.util.TypedValue();
         if (context.getTheme().resolveAttribute(android.R.attr.selectableItemBackground, tv, true)) {
             row.setBackgroundResource(tv.resourceId);
@@ -196,8 +196,11 @@ final class NewDrawingDialog {
     private TextView label(LinearLayout row, String text) {
         TextView t = new TextView(context);
         t.setText(text);
-        t.setTextSize(16);
+        t.setTextSize(15);
         t.setTextColor(ink);
+        t.setMaxLines(1);
+        t.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        t.setMinWidth(dp(56));
         row.addView(t, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
         return t;
     }
@@ -262,7 +265,12 @@ final class NewDrawingDialog {
         MaterialButton b = new MaterialButton(context, null,
                 com.google.android.material.R.attr.materialButtonOutlinedStyle);
         b.setAllCaps(false);
-        b.setTextSize(16);
+        b.setTextSize(14);
+        b.setMaxLines(1);
+        b.setMinWidth(0);
+        b.setMinimumWidth(0);
+        b.setPadding(dp(10), 0, dp(10), 0);
+        b.setIconPadding(dp(4));
         b.setIconResource(iconRes);
         b.setIconGravity(MaterialButton.ICON_GRAVITY_TEXT_END);
         b.setIconTint(android.content.res.ColorStateList.valueOf(ink));
@@ -300,7 +308,7 @@ final class NewDrawingDialog {
         if (showSize) {
             TextView v = new TextView(context);
             v.setText(size(w, h));
-            v.setTextSize(16);
+            v.setTextSize(14);
             v.setTextColor(ink);
             row.addView(v);
         }
@@ -392,6 +400,11 @@ final class NewDrawingDialog {
         pop.setAnchorView(anchor);
         pop.setModal(true);
         pop.setWidth(dp(300));
+        GradientDrawable bg = new GradientDrawable();
+        bg.setColor(MaterialColors.getColor(context,
+                com.google.android.material.R.attr.colorSurfaceContainer, 0xFF303030));
+        bg.setCornerRadius(dp(20));
+        pop.setBackgroundDrawable(bg);
         ArrayAdapter<String> adapter = new ArrayAdapter<String>(context, 0, left) {
             @Override
             public View getView(int position, View convert, ViewGroup parent) {

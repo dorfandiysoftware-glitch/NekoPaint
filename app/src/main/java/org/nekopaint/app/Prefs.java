@@ -61,13 +61,13 @@ final class Prefs {
         }
     }
 
-    /** Whether the editor uses the plain, ibis-like layout. */
-    static boolean minimalUi(Context c) {
-        return prefs(c).getBoolean("minimal_ui", false);
+    /** Whether the editor uses Material 3 colours instead of the grey ibis-like ones. */
+    static boolean md3Colors(Context c) {
+        return prefs(c).getBoolean("md3_colors", false);
     }
 
-    static void setMinimalUi(Context c, boolean on) {
-        prefs(c).edit().putBoolean("minimal_ui", on).apply();
+    static void setMd3Colors(Context c, boolean on) {
+        prefs(c).edit().putBoolean("md3_colors", on).apply();
     }
 
     static int getInt(Context c, String key, int def) {
