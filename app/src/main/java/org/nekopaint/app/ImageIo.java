@@ -19,6 +19,11 @@ final class ImageIo {
     }
 
     static Document open(InputStream in) throws IOException {
+        return openProject(in).document;
+    }
+
+    /** Opens a drawing together with its recording (null for PNG files and other programs' files). */
+    static OpenRaster.Project openProject(InputStream in) throws IOException {
         ByteArrayOutputStream buf = new ByteArrayOutputStream();
         byte[] chunk = new byte[65536];
         int n;
@@ -30,6 +35,7 @@ final class ImageIo {
         }
         byte[] data = buf.toByteArray();
         Document doc;
+        nekopaint.core.ProjectLog log = null;
         if (data.length > 4 && (data[0] & 0xFF) == 0x89 && data[1] == 'P') {
             PngCodec.Image image = PngCodec.decode(new ByteArrayInputStream(data));
             if (image.width > Prefs.MAX_SIDE || image.height > Prefs.MAX_SIDE
@@ -44,13 +50,28 @@ final class ImageIo {
                 }
             }
         } else {
-            doc = OpenRaster.read(new ByteArrayInputStream(data));
+            OpenRaster.Project project = OpenRaster.readProject(new ByteArrayInputStream(data));
+            doc = project.document;
+            log = project.log;
             if (doc.getWidth() > Prefs.MAX_SIDE || doc.getHeight() > Prefs.MAX_SIDE
                     || (long) doc.getWidth() * doc.getHeight() * doc.getLayerCount()
                             > Prefs.MAX_PIXELS * 4L) {
                 throw new IOException("Drawing is too big for this device");
             }
         }
-        return doc;
+        return new OpenRaster.Project(doc, log);
+    }
+
+    /** Writes a drawing (and its recording) to a file, replacing what was there. */
+    static void save(android.content.Context c, android.net.Uri uri, Document doc,
+            nekopaint.core.ProjectLog log) throws IOException {
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+        OpenRaster.write(doc, log, bytes);
+        try (java.io.OutputStream out = c.getContentResolver().openOutputStream(uri, "wt")) {
+            if (out == null) {
+                throw new IOException("Cannot open file");
+            }
+            bytes.writeTo(out);
+        }
     }
 }

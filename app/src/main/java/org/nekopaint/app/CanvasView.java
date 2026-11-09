@@ -56,6 +56,7 @@ public class CanvasView extends View {
     private Listener listener;
     private boolean gesturing;
     private boolean userMoved;
+    private boolean interactive = true;
     private float lastMidX;
     private float lastMidY;
 
@@ -78,7 +79,7 @@ public class CanvasView extends View {
                         return true;
                     }
                 });
-        setDocument(newBlankDocument(2048, 2048));
+        setDocument(newBlankDocument(64, 64));
     }
 
     public static Document newBlankDocument(int width, int height) {
@@ -91,12 +92,43 @@ public class CanvasView extends View {
         return document;
     }
 
+    /** @return true when no stroke is being drawn */
+    public boolean isIdle() {
+        return stroke == null;
+    }
+
+    public Editor getEditor() {
+        return editor;
+    }
+
+    /** Switches touch handling on or off (off for the time-lapse player). */
+    public void setInteractive(boolean on) {
+        interactive = on;
+    }
+
+    public void setBackdropColor(int color) {
+        backgroundPaint.setColor(color);
+        invalidate();
+    }
+
+    /** Tells the view that something outside it changed part of the document. */
+    public void externalChanged(Rect r) {
+        markStale(r);
+        invalidateCanvasRect(r);
+    }
+
     /** Shows another document and fits it to the screen. */
     public void setDocument(Document doc) {
+        setDocument(doc, null);
+    }
+
+    /** Shows another document; strokes and layer changes are recorded into the log if given. */
+    public void setDocument(Document doc, nekopaint.core.ProjectLog log) {
         cancelStroke();
         userMoved = false;
         document = doc;
         editor = new Editor(doc, MAX_HISTORY);
+        editor.setLog(log);
         tilesAcross = (doc.getWidth() + TILE - 1) / TILE;
         activeLayer = Math.min(doc.getLayerCount() - 1, Math.max(0, doc.getLayerCount() - 1));
         for (int i = 0; i < tiles.size(); i++) {
@@ -296,6 +328,9 @@ public class CanvasView extends View {
 
     @Override
     public boolean onTouchEvent(MotionEvent e) {
+        if (!interactive) {
+            return false;
+        }
         scaleDetector.onTouchEvent(e);
         switch (e.getActionMasked()) {
             case MotionEvent.ACTION_DOWN:

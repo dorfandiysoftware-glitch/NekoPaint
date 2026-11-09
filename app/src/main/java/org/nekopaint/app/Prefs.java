@@ -47,4 +47,26 @@ final class Prefs {
     static void setTheme(Context c, int mode) {
         prefs(c).edit().putInt("theme", mode).apply();
     }
+
+    /** The folder picked by the user for drawings, or null for the default folder. */
+    static String treeUri(Context c) {
+        return prefs(c).getString("tree_uri", null);
+    }
+
+    static void setTreeUri(Context c, String uri) {
+        if (uri == null) {
+            prefs(c).edit().remove("tree_uri").apply();
+        } else {
+            prefs(c).edit().putString("tree_uri", uri).apply();
+        }
+    }
+
+    /** Whether the editor uses the plain, ibis-like layout. */
+    static boolean minimalUi(Context c) {
+        return prefs(c).getBoolean("minimal_ui", false);
+    }
+
+    static void setMinimalUi(Context c, boolean on) {
+        prefs(c).edit().putBoolean("minimal_ui", on).apply();
+    }
 }

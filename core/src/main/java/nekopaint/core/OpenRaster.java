@@ -46,7 +46,7 @@ public final class OpenRaster {
         /** The recording, or null if the file has none. */
         public final ProjectLog log;
 
-        Project(Document document, ProjectLog log) {
+        public Project(Document document, ProjectLog log) {
             this.document = document;
             this.log = log;
         }

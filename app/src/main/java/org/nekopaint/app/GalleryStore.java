@@ -1,0 +1,158 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+package org.nekopaint.app;
+
+import android.content.Context;
+import android.net.Uri;
+
+import androidx.documentfile.provider.DocumentFile;
+
+import java.io.File;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
+
+/**
+ * The folder that holds the user's drawings. By default it is a private folder of the app;
+ * the user can pick any folder with Android's file picker (which also reaches cloud folders).
+ * "Deleted" drawings stay in the same folder under a name ending in {@code .trash}.
+ */
+final class GalleryStore {
+
+    static final String TRASH = ".trash";
+
+    /** One drawing file. */
+    static final class Item {
+        final DocumentFile file;
+        final String name;
+        final long modified;
+        final long size;
+
+        Item(DocumentFile file, String name) {
+            this.file = file;
+            this.name = name;
+            this.modified = file.lastModified();
+            this.size = file.length();
+        }
+
+        Uri uri() {
+            return file.getUri();
+        }
+
+        /** Name without the extension, for showing to the user. */
+        String title() {
+            String n = name;
+            if (n.endsWith(TRASH)) {
+                n = n.substring(0, n.length() - TRASH.length());
+            }
+            int dot = n.lastIndexOf('.');
+            return dot > 0 ? n.substring(0, dot) : n;
+        }
+
+        boolean isPng() {
+            return name.toLowerCase(java.util.Locale.ROOT).endsWith(".png");
+        }
+    }
+
+    private GalleryStore() {
+    }
+
+    static DocumentFile root(Context c) {
+        String tree = Prefs.treeUri(c);
+        if (tree != null) {
+            DocumentFile dir = DocumentFile.fromTreeUri(c, Uri.parse(tree));
+            if (dir != null && dir.canWrite()) {
+                return dir;
+            }
+        }
+        File base = c.getExternalFilesDir(null);
+        if (base == null) {
+            base = c.getFilesDir();
+        }
+        File dir = new File(base, "gallery");
+        //noinspection ResultOfMethodCallIgnored
+        dir.mkdirs();
+        return DocumentFile.fromFile(dir);
+    }
+
+    /** A readable description of the folder, for the "show folder path" dialog. */
+    static String displayPath(Context c) {
+        String tree = Prefs.treeUri(c);
+        DocumentFile r = root(c);
+        if (tree != null && r.getUri().toString().equals(tree)) {
+            String path = Uri.parse(tree).getPath();
+            if (path != null && path.startsWith("/tree/")) {
+                path = path.substring("/tree/".length());
+            }
+            return path == null ? tree : path;
+        }
+        File base = c.getExternalFilesDir(null);
+        if (base == null) {
+            base = c.getFilesDir();
+        }
+        return new File(base, "gallery").getAbsolutePath();
+    }
+
+    static List<Item> list(Context c, boolean trash) {
+        List<Item> items = new ArrayList<Item>();
+        DocumentFile[] files = root(c).listFiles();
+        for (DocumentFile f : files) {
+            String name = f.getName();
+            if (name == null || !f.isFile()) {
+                continue;
+            }
+            String lower = name.toLowerCase(java.util.Locale.ROOT);
+            boolean deleted = lower.endsWith(TRASH);
+            if (deleted != trash) {
+                continue;
+            }
+            String base = deleted ? lower.substring(0, lower.length() - TRASH.length()) : lower;
+            if (base.endsWith(".ora") || base.endsWith(".png")) {
+                items.add(new Item(f, name));
+            }
+        }
+        Collections.sort(items, new Comparator<Item>() {
+            @Override
+            public int compare(Item a, Item b) {
+                return Long.compare(b.modified, a.modified);
+            }
+        });
+        return items;
+    }
+
+    /** Creates an empty file with a name that is not taken yet; null if that fails. */
+    static DocumentFile create(Context c, String baseName) {
+        DocumentFile root = root(c);
+        String name = baseName + ".ora";
+        int n = 1;
+        while (root.findFile(name) != null || root.findFile(name + TRASH) != null) {
+            n++;
+            name = baseName + " " + n + ".ora";
+        }
+        return root.createFile("application/octet-stream", name);
+    }
+
+    static boolean softDelete(Item item) {
+        return item.file.renameTo(item.name + TRASH);
+    }
+
+    static boolean restore(Context c, Item item) {
+        String target = item.name.substring(0, item.name.length() - TRASH.length());
+        DocumentFile root = root(c);
+        if (root.findFile(target) != null) {
+            int dot = target.lastIndexOf('.');
+            String stem = dot > 0 ? target.substring(0, dot) : target;
+            String ext = dot > 0 ? target.substring(dot) : "";
+            int n = 2;
+            while (root.findFile(stem + " " + n + ext) != null) {
+                n++;
+            }
+            target = stem + " " + n + ext;
+        }
+        return item.file.renameTo(target);
+    }
+
+    static boolean deleteForever(Item item) {
+        return item.file.delete();
+    }
+}

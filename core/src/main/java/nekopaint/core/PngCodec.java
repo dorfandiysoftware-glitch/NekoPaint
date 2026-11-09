@@ -33,6 +33,15 @@ public final class PngCodec {
             this.height = height;
             this.pixels = pixels;
         }
+
+        /** @return the pixels as straight (non-premultiplied) ARGB, as Android bitmaps want */
+        public int[] toStraightArgb() {
+            int[] out = new int[pixels.length];
+            for (int i = 0; i < out.length; i++) {
+                out[i] = PixelOps.unpremultiply(pixels[i]);
+            }
+            return out;
+        }
     }
 
     private static final byte[] SIGNATURE = {
