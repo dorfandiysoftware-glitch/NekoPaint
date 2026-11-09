@@ -93,9 +93,75 @@ final class GalleryStore {
         return new File(base, "gallery").getAbsolutePath();
     }
 
-    static List<Item> list(Context c, boolean trash) {
+    /** Sub-folders of a folder, by name (trash and hidden folders excluded). */
+    static List<DocumentFile> folders(DocumentFile dir) {
+        List<DocumentFile> out = new ArrayList<DocumentFile>();
+        for (DocumentFile f : dir.listFiles()) {
+            String name = f.getName();
+            if (name != null && f.isDirectory() && !name.startsWith(".")) {
+                out.add(f);
+            }
+        }
+        Collections.sort(out, new Comparator<DocumentFile>() {
+            @Override
+            public int compare(DocumentFile a, DocumentFile b) {
+                return a.getName().compareToIgnoreCase(b.getName());
+            }
+        });
+        return out;
+    }
+
+    /** Creates a sub-folder with a free name; null if that fails. */
+    static DocumentFile createFolder(DocumentFile dir, String baseName) {
+        String name = baseName;
+        int n = 1;
+        while (dir.findFile(name) != null) {
+            n++;
+            name = baseName + " " + n;
+        }
+        return dir.createDirectory(name);
+    }
+
+    /** Deletes a folder together with everything in it. */
+    static boolean deleteFolder(DocumentFile dir) {
+        return dir.delete();
+    }
+
+    /** Counts of what is inside a folder, including all sub-folders. */
+    static final class Stats {
+        int drawings;
+        int folders;
+        long bytes;
+    }
+
+    static Stats stats(DocumentFile dir) {
+        Stats s = new Stats();
+        collect(dir, s, true);
+        return s;
+    }
+
+    private static void collect(DocumentFile dir, Stats s, boolean top) {
+        for (DocumentFile f : dir.listFiles()) {
+            String name = f.getName();
+            if (name == null) {
+                continue;
+            }
+            if (f.isDirectory()) {
+                s.folders++;
+                collect(f, s, false);
+            } else {
+                String lower = name.toLowerCase(java.util.Locale.ROOT);
+                if (lower.endsWith(".ora") || lower.endsWith(".png")) {
+                    s.drawings++;
+                    s.bytes += f.length();
+                }
+            }
+        }
+    }
+
+    static List<Item> list(DocumentFile dir, boolean trash) {
         List<Item> items = new ArrayList<Item>();
-        DocumentFile[] files = root(c).listFiles();
+        DocumentFile[] files = dir.listFiles();
         for (DocumentFile f : files) {
             String name = f.getName();
             if (name == null || !f.isFile()) {
@@ -121,8 +187,7 @@ final class GalleryStore {
     }
 
     /** Creates an empty file with a name that is not taken yet; null if that fails. */
-    static DocumentFile create(Context c, String baseName) {
-        DocumentFile root = root(c);
+    static DocumentFile create(DocumentFile root, String baseName) {
         String name = baseName + ".ora";
         int n = 1;
         while (root.findFile(name) != null || root.findFile(name + TRASH) != null) {
@@ -136,9 +201,8 @@ final class GalleryStore {
         return item.file.renameTo(item.name + TRASH);
     }
 
-    static boolean restore(Context c, Item item) {
+    static boolean restore(DocumentFile root, Item item) {
         String target = item.name.substring(0, item.name.length() - TRASH.length());
-        DocumentFile root = root(c);
         if (root.findFile(target) != null) {
             int dot = target.lastIndexOf('.');
             String stem = dot > 0 ? target.substring(0, dot) : target;

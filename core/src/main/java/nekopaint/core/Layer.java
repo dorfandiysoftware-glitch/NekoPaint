@@ -141,6 +141,20 @@ public final class Layer {
         }
     }
 
+    /**
+     * Replaces the whole layer with an image given as ordinary (non-premultiplied) ARGB pixels.
+     *
+     * @throws IllegalArgumentException if the length does not match the layer size
+     */
+    public void setStraightArgb(int[] argb) {
+        if (argb == null || argb.length != pixels.length) {
+            throw new IllegalArgumentException("Data does not match the layer");
+        }
+        for (int i = 0; i < argb.length; i++) {
+            pixels[i] = PixelOps.premultiply(argb[i]);
+        }
+    }
+
     /** The live pixel array, for use inside this package. */
     int[] pixels() {
         return pixels;

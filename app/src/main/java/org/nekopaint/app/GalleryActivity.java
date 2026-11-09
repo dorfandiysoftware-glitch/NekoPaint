@@ -45,6 +45,10 @@ import nekopaint.core.ProjectLog;
 public class GalleryActivity extends AppCompatActivity {
 
     private final List<GalleryStore.Item> items = new ArrayList<GalleryStore.Item>();
+    private final List<DocumentFile> folders = new ArrayList<DocumentFile>();
+    /** Folders we have opened, innermost last; empty means the gallery root. */
+    private final ArrayList<DocumentFile> path = new ArrayList<DocumentFile>();
+    private ActivityResultLauncher<String> pickImage;
     private final Set<String> selected = new LinkedHashSet<String>();
     private boolean selectMode;
 
@@ -78,7 +82,20 @@ public class GalleryActivity extends AppCompatActivity {
         adapter = new Adapter();
         grid.setAdapter(adapter);
 
-        findViewById(R.id.gallery_back).setOnClickListener(v -> finish());
+        findViewById(R.id.gallery_back).setOnClickListener(v -> goBack());
+        getOnBackPressedDispatcher().addCallback(this,
+                new androidx.activity.OnBackPressedCallback(true) {
+                    @Override
+                    public void handleOnBackPressed() {
+                        goBack();
+                    }
+                });
+        pickImage = registerForActivityResult(new ActivityResultContracts.GetContent(),
+                uri -> {
+                    if (uri != null) {
+                        importPicture(uri);
+                    }
+                });
         selectButton.setOnClickListener(v -> {
             selectMode = !selectMode;
             if (!selectMode && selected.size() > 1) {
@@ -122,6 +139,7 @@ public class GalleryActivity extends AppCompatActivity {
                         return;
                     }
                     Prefs.setTreeUri(this, uri.toString());
+                    path.clear();
                     selected.clear();
                     Toast.makeText(this, R.string.folder_changed, Toast.LENGTH_SHORT).show();
                     refresh();
@@ -145,10 +163,14 @@ public class GalleryActivity extends AppCompatActivity {
 
     private void refresh() {
         new Thread(() -> {
-            final List<GalleryStore.Item> found = GalleryStore.list(this, false);
+            final DocumentFile dir = currentDir();
+            final List<GalleryStore.Item> found = GalleryStore.list(dir, false);
+            final List<DocumentFile> subs = GalleryStore.folders(dir);
             runOnUiThread(() -> {
                 items.clear();
                 items.addAll(found);
+                folders.clear();
+                folders.addAll(subs);
                 Set<String> still = new LinkedHashSet<String>();
                 for (GalleryStore.Item it : items) {
                     if (selected.contains(it.uri().toString())) {
@@ -161,6 +183,20 @@ public class GalleryActivity extends AppCompatActivity {
                 updateUi();
             });
         }, "gallery-list").start();
+    }
+
+    private DocumentFile currentDir() {
+        return path.isEmpty() ? GalleryStore.root(this) : path.get(path.size() - 1);
+    }
+
+    private void goBack() {
+        if (path.isEmpty()) {
+            finish();
+            return;
+        }
+        path.remove(path.size() - 1);
+        selected.clear();
+        refresh();
     }
 
     private GalleryStore.Item single() {
@@ -187,8 +223,12 @@ public class GalleryActivity extends AppCompatActivity {
     }
 
     private void updateUi() {
-        title.setText(getString(R.string.gallery_title, items.size()));
-        empty.setVisibility(items.isEmpty() ? View.VISIBLE : View.GONE);
+        if (path.isEmpty()) {
+            title.setText(getString(R.string.gallery_title, items.size()));
+        } else {
+            title.setText(getString(R.string.folder_title, currentDir().getName(), items.size()));
+        }
+        empty.setVisibility(items.isEmpty() && folders.isEmpty() ? View.VISIBLE : View.GONE);
         selectButton.setText(selectMode ? R.string.done : R.string.select);
         boolean one = selected.size() == 1;
         playButton.setEnabled(one);
@@ -199,32 +239,79 @@ public class GalleryActivity extends AppCompatActivity {
     // ------------------------------------------------------------------ actions
 
     private void newDrawing() {
-        CanvasSizeDialog.show(this, Prefs.width(this), Prefs.height(this), (w, h) -> {
-            Prefs.setSize(this, w, h);
-            new Thread(() -> {
-                Uri uri = null;
-                try {
-                    DocumentFile file = GalleryStore.create(this, getString(R.string.drawing));
-                    if (file != null) {
-                        Document doc = CanvasView.newBlankDocument(w, h);
-                        ImageIo.save(this, file.getUri(), doc, new ProjectLog(w, h));
-                        uri = file.getUri();
-                    }
-                } catch (IOException | RuntimeException | OutOfMemoryError e) {
-                    uri = null;
-                }
-                final Uri result = uri;
-                runOnUiThread(() -> {
-                    if (result == null) {
-                        Toast.makeText(this, R.string.save_failed, Toast.LENGTH_LONG).show();
-                    } else {
-                        Intent i = new Intent(this, MainActivity.class);
-                        i.setData(result);
-                        startActivity(i);
-                    }
-                });
-            }, "gallery-new").start();
+        NewDrawingDialog.show(this, new NewDrawingDialog.Listener() {
+            @Override
+            public void onCreate(int w, int h) {
+                createDrawing(w, h, null);
+            }
+
+            @Override
+            public void onFolder() {
+                createFolder();
+            }
+
+            @Override
+            public void onImport() {
+                pickImage.launch("image/*");
+            }
         });
+    }
+
+    private void createFolder() {
+        final DocumentFile dir = currentDir();
+        new Thread(() -> {
+            final DocumentFile f = GalleryStore.createFolder(dir, getString(R.string.folder_default));
+            runOnUiThread(() -> {
+                if (f == null) {
+                    Toast.makeText(this, R.string.save_failed, Toast.LENGTH_LONG).show();
+                } else {
+                    Toast.makeText(this, R.string.folder_created, Toast.LENGTH_SHORT).show();
+                    refresh();
+                }
+            });
+        }, "gallery-folder").start();
+    }
+
+    private void importPicture(final Uri uri) {
+        Toast.makeText(this, "…", Toast.LENGTH_SHORT).show();
+        new Thread(() -> {
+            final Document doc = ImageImport.load(this, uri);
+            runOnUiThread(() -> {
+                if (doc == null) {
+                    Toast.makeText(this, R.string.import_failed, Toast.LENGTH_LONG).show();
+                } else {
+                    createDrawing(doc.getWidth(), doc.getHeight(), doc);
+                }
+            });
+        }, "gallery-import").start();
+    }
+
+    private void createDrawing(final int w, final int h, final Document base) {
+        Prefs.setSize(this, w, h);
+        final DocumentFile dir = currentDir();
+        new Thread(() -> {
+            Uri uri = null;
+            try {
+                DocumentFile file = GalleryStore.create(dir, getString(R.string.drawing));
+                if (file != null) {
+                    Document doc = base != null ? base : CanvasView.newBlankDocument(w, h);
+                    ImageIo.save(this, file.getUri(), doc, new ProjectLog(w, h));
+                    uri = file.getUri();
+                }
+            } catch (IOException | RuntimeException | OutOfMemoryError e) {
+                uri = null;
+            }
+            final Uri result = uri;
+            runOnUiThread(() -> {
+                if (result == null) {
+                    Toast.makeText(this, R.string.save_failed, Toast.LENGTH_LONG).show();
+                } else {
+                    Intent i = new Intent(this, MainActivity.class);
+                    i.setData(result);
+                    startActivity(i);
+                }
+            });
+        }, "gallery-new").start();
     }
 
     private void showInfo() {
@@ -239,10 +326,8 @@ public class GalleryActivity extends AppCompatActivity {
             text.append(getString(R.string.info_size,
                     Formatter.formatShortFileSize(this, it.size))).append('\n');
         } else {
-            text.append(getString(R.string.info_count, items.size())).append('\n');
-            if (sel.size() > 1) {
-                text.append(getString(R.string.info_selected, sel.size())).append('\n');
-            }
+            showFolderInfo();
+            return;
         }
         text.append(getString(R.string.info_folder, GalleryStore.displayPath(this)));
         new MaterialAlertDialogBuilder(this)
@@ -250,6 +335,27 @@ public class GalleryActivity extends AppCompatActivity {
                 .setMessage(text.toString())
                 .setPositiveButton(R.string.close, null)
                 .show();
+    }
+
+    private void showFolderInfo() {
+        final DocumentFile dir = currentDir();
+        final String name = path.isEmpty() ? getString(R.string.folder_unnamed) : dir.getName();
+        final String place = getString(R.string.gallery_name);
+        new Thread(() -> {
+            final GalleryStore.Stats st = GalleryStore.stats(dir);
+            runOnUiThread(() -> {
+                String text = getString(R.string.fi_name, name) + "\n"
+                        + getString(R.string.fi_place, place) + "\n"
+                        + getString(R.string.fi_size, Formatter.formatShortFileSize(this, st.bytes),
+                                st.drawings) + "\n"
+                        + getString(R.string.fi_data, st.drawings, st.folders);
+                new MaterialAlertDialogBuilder(this)
+                        .setTitle(R.string.folder_info)
+                        .setMessage(text)
+                        .setPositiveButton(R.string.close, null)
+                        .show();
+            });
+        }, "gallery-stats").start();
     }
 
     private void showMoreMenu() {
@@ -306,7 +412,7 @@ public class GalleryActivity extends AppCompatActivity {
 
     private void showTrash() {
         new Thread(() -> {
-            final List<GalleryStore.Item> trash = GalleryStore.list(this, true);
+            final List<GalleryStore.Item> trash = GalleryStore.list(currentDir(), true);
             runOnUiThread(() -> {
                 if (trash.isEmpty()) {
                     Toast.makeText(this, R.string.trash_empty, Toast.LENGTH_SHORT).show();
@@ -330,7 +436,7 @@ public class GalleryActivity extends AppCompatActivity {
                             final GalleryStore.Item it = trash.get(pos);
                             dialog.dismiss();
                             new Thread(() -> {
-                                GalleryStore.restore(this, it);
+                                GalleryStore.restore(currentDir(), it);
                                 runOnUiThread(this::refresh);
                             }, "gallery-restore").start();
                         }
@@ -422,7 +528,7 @@ public class GalleryActivity extends AppCompatActivity {
 
     // ------------------------------------------------------------------ adapter
 
-    private final class Adapter extends RecyclerView.Adapter<Adapter.Holder> {
+    private final class Adapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
 
         final class Holder extends RecyclerView.ViewHolder {
             final ImageView thumb;
@@ -437,15 +543,47 @@ public class GalleryActivity extends AppCompatActivity {
             }
         }
 
-        @Override
-        public Holder onCreateViewHolder(ViewGroup parent, int viewType) {
-            return new Holder(LayoutInflater.from(parent.getContext())
-                    .inflate(R.layout.item_gallery, parent, false));
+        final class FolderHolder extends RecyclerView.ViewHolder {
+            final TextView name;
+            final View delete;
+
+            FolderHolder(View v) {
+                super(v);
+                name = v.findViewById(R.id.folder_name);
+                delete = v.findViewById(R.id.folder_delete);
+            }
         }
 
         @Override
-        public void onBindViewHolder(Holder h, int position) {
-            final GalleryStore.Item it = items.get(position);
+        public int getItemViewType(int position) {
+            return position < folders.size() ? 1 : 0;
+        }
+
+        @Override
+        public RecyclerView.ViewHolder onCreateViewHolder(ViewGroup parent, int viewType) {
+            LayoutInflater in = LayoutInflater.from(parent.getContext());
+            if (viewType == 1) {
+                return new FolderHolder(in.inflate(R.layout.item_folder, parent, false));
+            }
+            return new Holder(in.inflate(R.layout.item_gallery, parent, false));
+        }
+
+        @Override
+        public void onBindViewHolder(RecyclerView.ViewHolder vh, int position) {
+            if (vh instanceof FolderHolder) {
+                final DocumentFile f = folders.get(position);
+                FolderHolder fh = (FolderHolder) vh;
+                fh.name.setText(f.getName());
+                fh.itemView.setOnClickListener(v -> {
+                    path.add(f);
+                    selected.clear();
+                    refresh();
+                });
+                fh.delete.setOnClickListener(v -> confirmDeleteFolder(f));
+                return;
+            }
+            Holder h = (Holder) vh;
+            final GalleryStore.Item it = items.get(position - folders.size());
             h.name.setText(it.title());
             thumbs.load(it, h.thumb);
             final String key = it.uri().toString();
@@ -469,7 +607,18 @@ public class GalleryActivity extends AppCompatActivity {
 
         @Override
         public int getItemCount() {
-            return items.size();
+            return folders.size() + items.size();
         }
+    }
+
+    private void confirmDeleteFolder(final DocumentFile f) {
+        new MaterialAlertDialogBuilder(this)
+                .setMessage(getString(R.string.folder_delete_confirm, f.getName()))
+                .setPositiveButton(R.string.delete, (d, w) -> new Thread(() -> {
+                    GalleryStore.deleteFolder(f);
+                    runOnUiThread(this::refresh);
+                }, "gallery-folder-delete").start())
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
     }
 }

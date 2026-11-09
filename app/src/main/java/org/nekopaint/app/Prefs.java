@@ -69,4 +69,25 @@ final class Prefs {
     static void setMinimalUi(Context c, boolean on) {
         prefs(c).edit().putBoolean("minimal_ui", on).apply();
     }
+
+    static int getInt(Context c, String key, int def) {
+        return prefs(c).getInt(key, def);
+    }
+
+    static void putInt(Context c, String key, int value) {
+        prefs(c).edit().putInt(key, value).apply();
+    }
+
+    static String getString(Context c, String key, String def) {
+        return prefs(c).getString(key, def);
+    }
+
+    static void putString(Context c, String key, String value) {
+        prefs(c).edit().putString(key, value).apply();
+    }
+
+    /** Whether a canvas of this size is allowed. */
+    static boolean sizeOk(int w, int h) {
+        return w >= 1 && h >= 1 && w <= MAX_SIDE && h <= MAX_SIDE && (long) w * h <= MAX_PIXELS;
+    }
 }

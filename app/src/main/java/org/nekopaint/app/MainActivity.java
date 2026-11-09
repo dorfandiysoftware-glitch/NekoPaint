@@ -167,7 +167,7 @@ public class MainActivity extends AppCompatActivity {
                 if (project != null && name != null
                         && name.toLowerCase(java.util.Locale.ROOT).endsWith(".png")) {
                     // A PNG is never overwritten: its picture becomes a new drawing.
-                    DocumentFile copy = GalleryStore.create(this, name.substring(0,
+                    DocumentFile copy = GalleryStore.create(GalleryStore.root(this), name.substring(0,
                             name.length() - 4));
                     if (copy != null) {
                         target = copy.getUri();

@@ -150,4 +150,13 @@ public class DocumentTest {
         }
         assertThrows(IllegalArgumentException.class, () -> doc.flattenRect(new Rect(0, 0, 6, 1), 0));
     }
+
+    @Test
+    public void straightArgbIsPremultipliedOnImport() {
+        Layer layer = new Layer(2, 1, "x");
+        layer.setStraightArgb(new int[] {0x80FF0000, 0xFF336699});
+        assertEquals(0x80800000, layer.getPixel(0, 0));
+        assertEquals(0xFF336699, layer.getPixel(1, 0));
+        assertThrows(IllegalArgumentException.class, () -> layer.setStraightArgb(new int[3]));
+    }
 }
