@@ -86,6 +86,33 @@
             android:text="@string/setup_minimal_hint"
             android:textAppearance="?attr/textAppearanceBodySmall" />
 
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:text="@string/gpu_title"
+            android:textAppearance="?attr/textAppearanceTitleMedium" />
+
+        <include
+            android:id="@+id/settings_gpu"
+            layout="@layout/view_gpu"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp" />
+
+        <com.google.android.material.checkbox.MaterialCheckBox
+            android:id="@+id/setting_perf"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:text="@string/perf_meter" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/perf_meter_hint"
+            android:textAppearance="?attr/textAppearanceBodySmall" />
+
         <com.google.android.material.button.MaterialButton
             android:id="@+id/setup_start"
             android:layout_width="match_parent"

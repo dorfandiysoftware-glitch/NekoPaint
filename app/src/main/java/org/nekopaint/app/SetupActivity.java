@@ -64,6 +64,8 @@ public class SetupActivity extends AppCompatActivity {
             uiM3.setChecked(on);
         });
 
+        GpuPicker.bind(this, findViewById(R.id.setup_gpu));
+
         // Canvas size
         sizeButton = findViewById(R.id.setup_size);
         showSize();

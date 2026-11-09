@@ -117,4 +117,16 @@
     <string name="detail_title">Title: %1$s</string>
     <string name="detail_changed">Changed: %1$s</string>
     <string name="no_folders">No folders here. Create one with New → Folder.</string>
+    <string name="gpu_title">Graphics</string>
+    <string name="gpu_checking">Checking the graphics chip…</string>
+    <string name="gpu_detected">Chip: %1$s (%2$s)\nOpenGL ES: %3$s\nVulkan: %4$s</string>
+    <string name="gpu_none">not available</string>
+    <string name="gpu_gl">OpenGL ES</string>
+    <string name="gpu_vk">Vulkan</string>
+    <string name="gpu_cpu">Software (processor only)</string>
+    <string name="gpu_default">recommended for this phone</string>
+    <string name="gpu_unsupported">not supported</string>
+    <string name="gpu_note">For now the choice is only remembered. The graphics engine itself arrives in a later update.</string>
+    <string name="perf_meter">Show performance meter</string>
+    <string name="perf_meter_hint">A small line in the editor with how long drawing takes. Useful while the engine is being tuned.</string>
 </resources>

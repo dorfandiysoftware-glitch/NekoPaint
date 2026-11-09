@@ -13,6 +13,14 @@ import android.view.MotionEvent;
 import android.view.ScaleGestureDetector;
 import android.view.View;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+
 import nekopaint.core.Brush;
 import nekopaint.core.Document;
 import nekopaint.core.Editor;
@@ -48,12 +56,65 @@ public class CanvasView extends View {
     private final int[] scratch = new int[TILE * TILE];
     private final ScaleGestureDetector scaleDetector;
 
-    private Document document;
-    private Editor editor;
-    private int tilesAcross;
+    private volatile Document document;
+    private volatile Editor editor;
+    private volatile int tilesAcross;
     private int activeLayer;
 
-    private Editor.Stroke stroke;
+    /**
+     * Drawing is done on a worker thread so a big brush never blocks touch and screen updates.
+     * Everything that touches the document while drawing goes through this one thread, in order.
+     */
+    private final ThreadPoolExecutor worker = new ThreadPoolExecutor(1, 1, 5, TimeUnit.SECONDS,
+            new LinkedBlockingQueue<Runnable>());
+
+    /** The stroke being drawn: the points the finger gave and the stroke the worker fills. */
+    private static final class Job {
+        final ConcurrentLinkedQueue<float[]> points = new ConcurrentLinkedQueue<float[]>();
+        final AtomicBoolean scheduled = new AtomicBoolean();
+        final Brush brush;
+        final int layer;
+        Editor.Stroke stroke; // worker thread only
+
+        Job(Brush brush, int layer) {
+            this.brush = brush;
+            this.layer = layer;
+        }
+    }
+
+    /** A freshly flattened piece of a tile, made by the worker and copied in by the UI thread. */
+    private static final class TileUpdate {
+        final int key;
+        final int left;
+        final int top;
+        final int width;
+        final int height;
+        final int[] pixels;
+
+        TileUpdate(int key, int left, int top, int width, int height, int[] pixels) {
+            this.key = key;
+            this.left = left;
+            this.top = top;
+            this.width = width;
+            this.height = height;
+            this.pixels = pixels;
+        }
+    }
+
+    private Job job;
+    private volatile boolean canUndoNow;
+    private volatile boolean canRedoNow;
+
+    // Performance counters for the on-screen meter.
+    private final Paint perfPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint perfBack = new Paint();
+    private boolean perfVisible;
+    private volatile float rasterMs;
+    private volatile float rasterWorstMs;
+    private float drawMs;
+    private int frames;
+    private long frameClock;
+    private int fps;
     private Listener listener;
     private boolean gesturing;
     private boolean userMoved;
@@ -89,16 +150,39 @@ public class CanvasView extends View {
         return d;
     }
 
+    /** Waits until everything handed to the drawing thread is done. */
+    public void flush() {
+        try {
+            worker.submit(new Runnable() {
+                @Override
+                public void run() {
+                }
+            }).get();
+        } catch (java.util.concurrent.ExecutionException e) {
+            // nothing to wait for any more
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    /** Shows or hides the small frame-time meter in the corner. */
+    public void setPerfVisible(boolean on) {
+        perfVisible = on;
+        invalidate();
+    }
+
     public Document getDocument() {
+        flush();
         return document;
     }
 
     /** @return true when no stroke is being drawn */
     public boolean isIdle() {
-        return stroke == null;
+        return job == null;
     }
 
     public Editor getEditor() {
+        flush();
         return editor;
     }
 
@@ -126,10 +210,14 @@ public class CanvasView extends View {
     /** Shows another document; strokes and layer changes are recorded into the log if given. */
     public void setDocument(Document doc, nekopaint.core.ProjectLog log) {
         cancelStroke();
+        flush();
         userMoved = false;
         document = doc;
-        editor = new Editor(doc, MAX_HISTORY);
-        editor.setLog(log);
+        Editor fresh = new Editor(doc, MAX_HISTORY);
+        fresh.setLog(log);
+        editor = fresh;
+        canUndoNow = false;
+        canRedoNow = false;
         tilesAcross = (doc.getWidth() + TILE - 1) / TILE;
         activeLayer = Math.min(doc.getLayerCount() - 1, Math.max(0, doc.getLayerCount() - 1));
         for (int i = 0; i < tiles.size(); i++) {
@@ -179,27 +267,46 @@ public class CanvasView extends View {
     }
 
     public boolean canUndo() {
-        return editor.canUndo();
+        return canUndoNow;
     }
 
     public boolean canRedo() {
-        return editor.canRedo();
+        return canRedoNow;
     }
 
     public void undo() {
-        if (stroke == null && editor.undo()) {
-            markStale(editor.getLastChanged());
-            invalidateCanvasRect(editor.getLastChanged());
-            notifyHistory();
-        }
+        history(true);
     }
 
     public void redo() {
-        if (stroke == null && editor.redo()) {
-            markStale(editor.getLastChanged());
-            invalidateCanvasRect(editor.getLastChanged());
-            notifyHistory();
+        history(false);
+    }
+
+    private void history(final boolean undo) {
+        if (job != null) {
+            return;
         }
+        worker.execute(new Runnable() {
+            @Override
+            public void run() {
+                final Editor e = editor;
+                boolean ok = undo ? e.undo() : e.redo();
+                if (!ok) {
+                    return;
+                }
+                final Rect changed = e.getLastChanged();
+                canUndoNow = e.canUndo();
+                canRedoNow = e.canRedo();
+                post(new Runnable() {
+                    @Override
+                    public void run() {
+                        markStale(changed);
+                        invalidateCanvasRect(changed);
+                        notifyHistory();
+                    }
+                });
+            }
+        });
     }
 
     /** Call after changing a layer's visibility, opacity, blend mode or after adding one. */
@@ -214,7 +321,10 @@ public class CanvasView extends View {
     /** Call after adding, removing or moving layers; the history cannot follow those. */
     public void layerStructureChanged() {
         cancelStroke();
+        flush();
         editor.clearHistory();
+        canUndoNow = false;
+        canRedoNow = false;
         activeLayer = Math.max(0, Math.min(activeLayer, document.getLayerCount() - 1));
         layersChanged();
         notifyHistory();
@@ -222,6 +332,7 @@ public class CanvasView extends View {
 
     /** @return the picture on white paper as a new bitmap */
     public Bitmap exportBitmap() {
+        flush();
         int w = document.getWidth();
         int h = document.getHeight();
         int[] px = document.flatten(PAPER);
@@ -333,6 +444,7 @@ public class CanvasView extends View {
 
     @Override
     protected void onDraw(Canvas canvas) {
+        long start = System.nanoTime();
         canvas.drawRect(0, 0, getWidth(), getHeight(), backgroundPaint);
         matrix.invert(inverse);
         tmp.set(0, 0, getWidth(), getHeight());
@@ -349,6 +461,26 @@ public class CanvasView extends View {
             }
         }
         canvas.restore();
+        if (perfVisible) {
+            drawMs = drawMs * 0.8f + (System.nanoTime() - start) / 1e6f * 0.2f;
+            frames++;
+            long now = System.nanoTime();
+            if (now - frameClock >= 1_000_000_000L) {
+                fps = frames;
+                frames = 0;
+                frameClock = now;
+            }
+            String text = String.format(java.util.Locale.ROOT,
+                    "draw %.1f ms | stroke %.1f ms (max %.0f) | %d fps",
+                    drawMs, rasterMs, rasterWorstMs, fps);
+            float d = getResources().getDisplayMetrics().density;
+            perfPaint.setTextSize(11 * d);
+            perfPaint.setColor(0xFFFFFFFF);
+            perfBack.setColor(0xAA000000);
+            float w = perfPaint.measureText(text);
+            canvas.drawRect(4 * d, getHeight() - 24 * d, 12 * d + w, getHeight() - 4 * d, perfBack);
+            canvas.drawText(text, 8 * d, getHeight() - 10 * d, perfPaint);
+        }
     }
 
     // ------------------------------------------------------------------ touch
@@ -414,11 +546,19 @@ public class CanvasView extends View {
         Brush brush = eraser
                 ? Brush.eraser(radius)
                 : new Brush(color, radius, 0.8f, flow, 0.15f, false);
-        stroke = editor.beginStroke(activeLayer, brush);
+        final Job j = new Job(brush, activeLayer);
+        job = j;
+        worker.execute(new Runnable() {
+            @Override
+            public void run() {
+                j.stroke = editor.beginStroke(j.layer, j.brush);
+            }
+        });
     }
 
     private void addPoints(MotionEvent e) {
-        if (stroke == null) {
+        final Job j = job;
+        if (j == null) {
             return;
         }
         boolean finger = e.getToolType(0) == MotionEvent.TOOL_TYPE_FINGER;
@@ -431,33 +571,129 @@ public class CanvasView extends View {
             float pressure = finger ? 1f
                     : last ? e.getPressure(0) : e.getHistoricalPressure(0, i);
             inverse.mapPoints(point);
-            stroke.addPoint(point[0], point[1], pressure);
+            j.points.add(new float[] {point[0], point[1], pressure});
         }
-        // Redraw only the pixels this batch of points really changed.
-        Rect changed = stroke.takeChanged();
-        markStale(changed);
-        invalidateCanvasRect(changed);
+        if (j.scheduled.compareAndSet(false, true)) {
+            worker.execute(new Runnable() {
+                @Override
+                public void run() {
+                    j.scheduled.set(false);
+                    long t0 = System.nanoTime();
+                    if (j.stroke != null && feed(j)) {
+                        publish(j.stroke.takeChanged(), t0);
+                    }
+                }
+            });
+        }
+    }
+
+    /** Worker: pushes every waiting point into the stroke. @return true if there were any */
+    private boolean feed(Job j) {
+        boolean any = false;
+        float[] p;
+        while ((p = j.points.poll()) != null) {
+            j.stroke.addPoint(p[0], p[1], p[2]);
+            any = true;
+        }
+        return any;
+    }
+
+    /** Worker: flattens the changed tiles and hands them to the UI thread. */
+    private void publish(final Rect changed, long startNanos) {
+        if (changed.isEmpty()) {
+            return;
+        }
+        final Document doc = document;
+        final int across = tilesAcross;
+        final List<TileUpdate> updates = new ArrayList<TileUpdate>();
+        for (int ty = changed.top / TILE; ty <= (changed.bottom - 1) / TILE; ty++) {
+            for (int tx = changed.left / TILE; tx <= (changed.right - 1) / TILE; tx++) {
+                int ox = tx * TILE;
+                int oy = ty * TILE;
+                int l = Math.max(changed.left, ox);
+                int t = Math.max(changed.top, oy);
+                int r = Math.min(Math.min(changed.right, ox + TILE), doc.getWidth());
+                int b = Math.min(Math.min(changed.bottom, oy + TILE), doc.getHeight());
+                if (r <= l || b <= t) {
+                    continue;
+                }
+                int[] px = new int[(r - l) * (b - t)];
+                doc.flattenRect(new Rect(l, t, r, b), PAPER, px);
+                updates.add(new TileUpdate(ty * across + tx, l - ox, t - oy, r - l, b - t, px));
+            }
+        }
+        float ms = (System.nanoTime() - startNanos) / 1e6f;
+        rasterMs = ms;
+        rasterWorstMs = Math.max(ms, rasterWorstMs * 0.98f);
+        post(new Runnable() {
+            @Override
+            public void run() {
+                for (TileUpdate u : updates) {
+                    Bitmap bmp = tiles.get(u.key);
+                    if (bmp != null) {
+                        bmp.setPixels(u.pixels, 0, u.width, u.left, u.top, u.width, u.height);
+                    }
+                }
+                invalidateCanvasRect(changed);
+            }
+        });
     }
 
     private void endStroke() {
-        if (stroke != null) {
-            Rect rest = stroke.takeChanged();
-            stroke.end();
-            stroke = null;
-            markStale(rest);
-            invalidateCanvasRect(rest);
-            notifyHistory();
+        final Job j = job;
+        if (j == null) {
+            return;
         }
+        job = null;
+        worker.execute(new Runnable() {
+            @Override
+            public void run() {
+                Editor.Stroke s = j.stroke;
+                if (s == null) {
+                    return;
+                }
+                long t0 = System.nanoTime();
+                feed(j);
+                Rect rest = s.takeChanged();
+                s.end();
+                canUndoNow = editor.canUndo();
+                canRedoNow = editor.canRedo();
+                publish(rest, t0);
+                post(new Runnable() {
+                    @Override
+                    public void run() {
+                        notifyHistory();
+                    }
+                });
+            }
+        });
     }
 
     private void cancelStroke() {
-        if (stroke != null) {
-            Rect dirty = stroke.getDirty();
-            stroke.cancel();
-            stroke = null;
-            markStale(dirty);
-            invalidateCanvasRect(dirty);
+        final Job j = job;
+        if (j == null) {
+            return;
         }
+        job = null;
+        worker.execute(new Runnable() {
+            @Override
+            public void run() {
+                Editor.Stroke s = j.stroke;
+                if (s == null) {
+                    return;
+                }
+                j.points.clear();
+                final Rect dirty = s.getDirty();
+                s.cancel();
+                post(new Runnable() {
+                    @Override
+                    public void run() {
+                        markStale(dirty);
+                        invalidateCanvasRect(dirty);
+                    }
+                });
+            }
+        });
     }
 
     private static float midX(MotionEvent e) {

@@ -73,6 +73,7 @@ public class MainActivity extends AppCompatActivity {
         setContentView(minimal ? R.layout.activity_main_minimal : R.layout.activity_main);
 
         canvas = findViewById(R.id.canvas);
+        canvas.setPerfVisible(Prefs.perfOverlay(this));
         int backdrop = minimal ? 0xFFC0C0C0 : getColor(R.color.canvas_bg);
         if (minimal) {
             canvas.setBackdropColor(backdrop);

@@ -90,4 +90,22 @@ final class Prefs {
     static boolean sizeOk(int w, int h) {
         return w >= 1 && h >= 1 && w <= MAX_SIDE && h <= MAX_SIDE && (long) w * h <= MAX_PIXELS;
     }
+
+    /** Whether the editor shows the small frame-time meter. */
+    static boolean perfOverlay(Context c) {
+        return prefs(c).getBoolean("perf_overlay", true);
+    }
+
+    static void setPerfOverlay(Context c, boolean on) {
+        prefs(c).edit().putBoolean("perf_overlay", on).apply();
+    }
+
+    /** "opengl", "vulkan" or "cpu"; null until chosen. */
+    static String gpuApi(Context c) {
+        return prefs(c).getString("gpu_api", null);
+    }
+
+    static void setGpuApi(Context c, String api) {
+        prefs(c).edit().putString("gpu_api", api).apply();
+    }
 }

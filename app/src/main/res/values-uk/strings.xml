@@ -116,4 +116,16 @@
     <string name="detail_title">Назва: %1$s</string>
     <string name="detail_changed">Змінено: %1$s</string>
     <string name="no_folders">Тут немає папок. Створи її через Новий → Папка.</string>
+    <string name="gpu_title">Графіка</string>
+    <string name="gpu_checking">Перевіряю відеочіп…</string>
+    <string name="gpu_detected">Чіп: %1$s (%2$s)\nOpenGL ES: %3$s\nVulkan: %4$s</string>
+    <string name="gpu_none">недоступний</string>
+    <string name="gpu_gl">OpenGL ES</string>
+    <string name="gpu_vk">Vulkan</string>
+    <string name="gpu_cpu">Програмний (лише процесор)</string>
+    <string name="gpu_default">рекомендовано для цього телефона</string>
+    <string name="gpu_unsupported">не підтримується</string>
+    <string name="gpu_note">Поки що вибір лише запам\'ятовується. Сам графічний рушій з\'явиться в наступному оновленні.</string>
+    <string name="perf_meter">Показувати лічильник продуктивності</string>
+    <string name="perf_meter_hint">Невеликий рядок у редакторі з часом малювання. Корисно, поки рушій налаштовується.</string>
 </resources>

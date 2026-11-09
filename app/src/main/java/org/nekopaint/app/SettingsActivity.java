@@ -44,6 +44,11 @@ public class SettingsActivity extends AppCompatActivity {
         minimal.setChecked(Prefs.md3Colors(this));
         minimal.setOnCheckedChangeListener((b, on) -> Prefs.setMd3Colors(this, on));
 
+        GpuPicker.bind(this, findViewById(R.id.settings_gpu));
+        CompoundButton perf = findViewById(R.id.setting_perf);
+        perf.setChecked(Prefs.perfOverlay(this));
+        perf.setOnCheckedChangeListener((b, on) -> Prefs.setPerfOverlay(this, on));
+
         findViewById(R.id.setup_start).setOnClickListener(v -> finish());
     }
 
