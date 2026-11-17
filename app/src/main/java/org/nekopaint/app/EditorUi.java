@@ -656,13 +656,12 @@ final class EditorUi {
         int h = layer.getHeight();
         int tw = w >= h ? size : Math.max(1, size * w / h);
         int th = h >= w ? size : Math.max(1, size * h / w);
-        int[] src = layer.pixels();
         int[] px = new int[tw * th];
         for (int y = 0; y < th; y++) {
             int sy = Math.min(h - 1, (int) ((y + 0.5f) * h / th));
             for (int x = 0; x < tw; x++) {
                 int sx = Math.min(w - 1, (int) ((x + 0.5f) * w / tw));
-                int p = src[sy * w + sx];
+                int p = layer.getPixel(sx, sy);
                 int a = p >>> 24;
                 if (a == 0) {
                     px[y * tw + x] = 0;
