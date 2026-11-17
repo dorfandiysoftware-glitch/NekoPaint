@@ -59,9 +59,21 @@ final class EditorUi {
     private final float density;
 
     private final LinearLayout bar;
+    private LinearLayout buttonRow;
+    private LinearLayout slidersBox;
+    private Slider sizeSlider;
+    private Slider flowSlider;
+    private TextView sizeText;
+    private TextView flowText;
+    private BrushPreview circle;
+    private TextView circleText;
+    private View colorBoxView;
+    private float hardness = 0.8f;
+    private float spacing = 0.15f;
+    private int brushIndex = 2;
     private ImageButton swapButton;
     private ImageButton toolButton;
-    private ImageButton brushButton;
+    private View brushButton;
     private View colorSwatch;
     private ImageButton liteButton;
     private ImageButton layersButton;
@@ -105,12 +117,11 @@ final class EditorUi {
             rowSelected = act.themeColor(com.google.android.material.R.attr.colorSecondaryContainer);
         }
         bar = barHost;
-        bar.setBackgroundColor(barBg);
+        bar.setBackgroundColor(classic ? 0xFFC0C0C0 : act.themeColor(com.google.android.material.R.attr.colorSurface));
         buildBar();
-        canvas.setRadius(radiusFor(sizePos));
-        canvas.setFlow(flowPos / 100f);
         canvas.setColor(color);
         refreshSwatch();
+        applyBrush();
     }
 
     // ------------------------------------------------------------------ small helpers
@@ -155,46 +166,75 @@ final class EditorUi {
     // ------------------------------------------------------------------ the bar
 
     private void buildBar() {
-        bar.setOrientation(LinearLayout.HORIZONTAL);
-        bar.setGravity(Gravity.CENTER_VERTICAL);
-        swapButton = iconButton(R.drawable.ic_eraser, R.string.eraser);
+        bar.setOrientation(LinearLayout.VERTICAL);
+
+        // The two sliders stay on screen above the buttons, like in a painting app.
+        slidersBox = new LinearLayout(act);
+        slidersBox.setOrientation(LinearLayout.VERTICAL);
+        slidersBox.setPadding(dp(4), dp(2), dp(8), dp(2));
+        sizeText = label("", 14, classic ? Color.BLACK : fg);
+        flowText = label("", 14, classic ? Color.BLACK : fg);
+        sizeSlider = slider(1, 150, sizePos);
+        flowSlider = slider(1, 100, flowPos);
+        slidersBox.addView(sliderRow(sizeText, sizeSlider));
+        slidersBox.addView(sliderRow(flowText, flowSlider));
+        sizeSlider.addOnChangeListener((sl, v, user) -> applyBrush());
+        flowSlider.addOnChangeListener((sl, v, user) -> applyBrush());
+        bar.addView(slidersBox);
+
+        buttonRow = new LinearLayout(act);
+        buttonRow.setGravity(Gravity.CENTER_VERTICAL);
+        buttonRow.setBackgroundColor(barBg);
+        bar.addView(buttonRow);
+
+        swapButton = iconButton(R.drawable.ic_swap_tools, R.string.eraser);
         toolButton = iconButton(R.drawable.ic_brush, R.string.tools);
-        brushButton = iconButton(R.drawable.ic_brush_pattern, R.string.brush_settings);
         liteButton = iconButton(R.drawable.ic_expand_more, R.string.lite_mode);
         moreButton = iconButton(R.drawable.ic_chevron_left, R.string.menu);
         layersButton = iconButton(R.drawable.ic_layers, R.string.layers);
 
+        FrameLayout brushBox = new FrameLayout(act);
+        circle = new BrushPreview(act, null);
+        brushBox.addView(circle, new FrameLayout.LayoutParams(dp(50), dp(50), Gravity.CENTER));
+        circleText = label("", 11, Color.WHITE);
+        circleText.setTypeface(Typeface.DEFAULT_BOLD);
+        circleText.setShadowLayer(3f, 0f, 0f, Color.BLACK);
+        brushBox.addView(circleText, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.CENTER));
+        brushBox.setContentDescription(act.getString(R.string.brush_settings));
+        brushButton = brushBox;
+
         FrameLayout colorBox = new FrameLayout(act);
         colorSwatch = new View(act);
-        FrameLayout.LayoutParams sp = new FrameLayout.LayoutParams(dp(30), dp(30), Gravity.CENTER);
-        colorBox.addView(colorSwatch, sp);
+        colorBox.addView(colorSwatch, new FrameLayout.LayoutParams(dp(40), dp(40), Gravity.CENTER));
         colorBox.setContentDescription(act.getString(R.string.color));
+        colorBoxView = colorBox;
 
         FrameLayout layersBox = new FrameLayout(act);
         layersBox.addView(layersButton, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
-        layersCount = label("1", 10, fg);
+        layersCount = label("1", 12, Color.BLACK);
         layersCount.setTypeface(Typeface.DEFAULT_BOLD);
         layersCount.setGravity(Gravity.CENTER);
-        layersCount.setBackground(round(accent, 8));
-        layersCount.setPadding(dp(5), 0, dp(5), 0);
+        layersCount.setBackground(round(Color.WHITE, 2));
+        layersCount.setPadding(dp(6), 0, dp(6), 0);
         FrameLayout.LayoutParams cp = new FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT, dp(16), Gravity.CENTER_HORIZONTAL | Gravity.BOTTOM);
-        cp.bottomMargin = dp(4);
-        cp.leftMargin = dp(20);
+                ViewGroup.LayoutParams.WRAP_CONTENT, dp(20), Gravity.CENTER);
+        cp.rightMargin = dp(5);
+        cp.topMargin = dp(2);
         layersBox.addView(layersCount, cp);
 
         fullBarItems = new View[] {swapButton, toolButton, brushButton, colorBox, layersBox,
-                moreButton};
+                moreButton, slidersBox};
         View[] order = {swapButton, toolButton, brushButton, colorBox, liteButton, layersBox,
                 moreButton};
         for (View v : order) {
-            bar.addView(v, new LinearLayout.LayoutParams(0, dp(56), 1f));
+            buttonRow.addView(v, new LinearLayout.LayoutParams(0, dp(56), 1f));
         }
 
         swapButton.setOnClickListener(v -> setTool(tool == TOOL_ERASER ? TOOL_BRUSH : TOOL_ERASER));
         toolButton.setOnClickListener(v -> showTools());
-        brushButton.setOnClickListener(v -> showBrush());
+        brushBox.setOnClickListener(v -> showBrush());
         colorBox.setOnClickListener(v -> showColor(colorBox));
         liteButton.setOnClickListener(v -> setLite(!lite));
         layersBox.setOnClickListener(v -> showLayers(layersBox));
@@ -203,12 +243,68 @@ final class EditorUi {
             host.showMenu(moreButton);
         });
         syncToolIcons();
+        applyBrush();
+    }
+
+    private void applyBrush() {
+        sizePos = sizeSlider.getValue();
+        flowPos = flowSlider.getValue();
+        float r = radiusFor(sizePos);
+        canvas.setRadius(r);
+        canvas.setFlow(flowPos / 100f);
+        canvas.setBrushShape(hardness, spacing);
+        String txt = String.valueOf(Math.round(r)) + ".0";
+        sizeText.setText(txt);
+        flowText.setText(String.valueOf(Math.round(flowPos)));
+        circleText.setText(txt);
+        circle.setBrush(color, Math.min(1f, 0.25f + sizePos / 200f));
+        if (brushSizeText != null) {
+            brushSizeText.setText(txt + " px");
+            brushFlowText.setText(String.valueOf(Math.round(flowPos)) + "%");
+            if (brushSizeP.getValue() != sizePos) {
+                brushSizeP.setValue(sizePos);
+            }
+            if (brushFlowP.getValue() != flowPos) {
+                brushFlowP.setValue(flowPos);
+            }
+        }
     }
 
     private void refreshSwatch() {
         GradientDrawable g = round(0xFF000000 | color, 6);
-        g.setStroke(dp(2), fg);
-        colorSwatch.setBackground(g);
+        g.setStroke(dp(1), Color.WHITE);
+        colorSwatch.setBackground(tool == TOOL_ERASER ? new android.graphics.drawable.LayerDrawable(
+                new android.graphics.drawable.Drawable[] {g, new SlashDrawable()}) : g);
+    }
+
+    /** A red diagonal line over the colour while the eraser is active. */
+    private static final class SlashDrawable extends android.graphics.drawable.Drawable {
+        private final android.graphics.Paint p = new android.graphics.Paint(
+                android.graphics.Paint.ANTI_ALIAS_FLAG);
+
+        SlashDrawable() {
+            p.setColor(0xFFE53935);
+            p.setStrokeWidth(5f);
+        }
+
+        @Override
+        public void draw(android.graphics.Canvas c) {
+            android.graphics.Rect b = getBounds();
+            c.drawLine(b.left + 4, b.bottom - 4, b.right - 4, b.top + 4, p);
+        }
+
+        @Override
+        public void setAlpha(int a) {
+        }
+
+        @Override
+        public void setColorFilter(android.graphics.ColorFilter f) {
+        }
+
+        @Override
+        public int getOpacity() {
+            return android.graphics.PixelFormat.TRANSLUCENT;
+        }
     }
 
     void setLite(boolean on) {
@@ -223,13 +319,14 @@ final class EditorUi {
         lp.width = on ? dp(56) : 0;
         lp.weight = on ? 0f : 1f;
         liteButton.setLayoutParams(lp);
-        bar.setGravity(on ? Gravity.END | Gravity.CENTER_VERTICAL : Gravity.CENTER_VERTICAL);
-        bar.setBackgroundColor(on ? Color.TRANSPARENT : barBg);
+        buttonRow.setGravity(on ? Gravity.END | Gravity.CENTER_VERTICAL : Gravity.CENTER_VERTICAL);
+        buttonRow.setBackgroundColor(on ? Color.TRANSPARENT : barBg);
     }
 
     private void setTool(int t) {
         tool = t;
         canvas.setEraser(t == TOOL_ERASER);
+        refreshSwatch();
         canvas.setPicker(t == TOOL_PICKER ? rgb -> {
             setColor(rgb, false);
         } : null);
@@ -237,7 +334,6 @@ final class EditorUi {
     }
 
     private void syncToolIcons() {
-        swapButton.setImageResource(tool == TOOL_ERASER ? R.drawable.ic_brush : R.drawable.ic_eraser);
         swapButton.setContentDescription(act.getString(tool == TOOL_ERASER ? R.string.brush
                 : R.string.eraser));
         toolButton.setImageResource(tool == TOOL_ERASER ? R.drawable.ic_eraser
@@ -248,6 +344,9 @@ final class EditorUi {
         color = rgb & 0xFFFFFF;
         canvas.setColor(color);
         refreshSwatch();
+        if (circle != null) {
+            applyBrush();
+        }
         if (!fromPanel && colorSync != null) {
             colorSync.run();
         }
@@ -286,12 +385,12 @@ final class EditorUi {
         shell.measure(View.MeasureSpec.makeMeasureSpec(widthPx, View.MeasureSpec.EXACTLY),
                 View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED));
         int[] at = new int[2];
-        bar.getLocationOnScreen(at);
+        buttonRow.getLocationOnScreen(at);
         int y = Math.max(dp(8), at[1] - shell.getMeasuredHeight() - dp(8));
         int screenW = act.getResources().getDisplayMetrics().widthPixels;
         int x = Math.max(dp(8), Math.min(screenW - widthPx - dp(8),
                 anchorCenterX(anchor) - widthPx / 2));
-        p.showAtLocation(bar, Gravity.TOP | Gravity.START, x, y);
+        p.showAtLocation(buttonRow, Gravity.TOP | Gravity.START, x, y);
         open = p;
         return p;
     }
@@ -334,12 +433,12 @@ final class EditorUi {
             LinearLayout cell = new LinearLayout(act);
             cell.setOrientation(LinearLayout.VERTICAL);
             cell.setGravity(Gravity.CENTER_HORIZONTAL);
-            cell.setPadding(dp(4), dp(8), dp(4), dp(8));
+            cell.setPadding(dp(2), dp(6), dp(2), dp(6));
             ImageView icon = new ImageView(act);
             icon.setImageResource((Integer) it[0]);
             icon.setImageTintList(ColorStateList.valueOf(id >= 0 && id == tool ? accent : fg));
-            cell.addView(icon, new LinearLayout.LayoutParams(dp(36), dp(36)));
-            TextView name = label(act.getString((Integer) it[1]), 12, id >= 0 && id == tool
+            cell.addView(icon, new LinearLayout.LayoutParams(dp(30), dp(30)));
+            TextView name = label(act.getString((Integer) it[1]), 11, id >= 0 && id == tool
                     ? accent : fg);
             name.setGravity(Gravity.CENTER);
             name.setSingleLine(true);
@@ -364,8 +463,8 @@ final class EditorUi {
         int h = act.getResources().getDisplayMetrics().heightPixels / 2;
         FrameLayout box = new FrameLayout(act);
         box.addView(scroll, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
-                Math.min(dp(8 * 76), h)));
-        show(box, toolButton, panelWidth(280));
+                Math.min(dp(8 * 62), h)));
+        show(box, toolButton, panelWidth(176));
     }
 
     // ------------------------------------------------------------------ brush
@@ -415,37 +514,181 @@ final class EditorUi {
         return row;
     }
 
+    private TextView brushSizeText;
+    private TextView brushFlowText;
+    private Slider brushSizeP;
+    private Slider brushFlowP;
+
+    /** name, hardness, spacing, default size position, default opacity */
+    private static final Object[][] PRESETS = {
+        {"Pen (Hard)", 1.0f, 0.08f, 8f, 100f},
+        {"Pen (Soft)", 0.5f, 0.10f, 8f, 100f},
+        {"Round", 0.8f, 0.15f, 8f, 100f},
+        {"Marker", 0.9f, 0.05f, 24f, 100f},
+        {"Pen (Fade)", 0.0f, 0.10f, 60f, 100f},
+        {"Airbrush", 0.0f, 0.08f, 70f, 30f},
+    };
+
+    /** Paints a sample stroke with the real engine, so the list shows what the brush does. */
+    private Bitmap strokeSample(Object[] preset, int w, int h) {
+        Layer layer = new Layer(w, h, "sample");
+        float size = (Float) preset[3];
+        float r = Math.max(1.5f, Math.min(size, h * 0.34f));
+        nekopaint.core.Brush brush = new nekopaint.core.Brush(0x000000, r, (Float) preset[1], 1f,
+                (Float) preset[2], false);
+        nekopaint.core.StrokeRasterizer s = new nekopaint.core.StrokeRasterizer(layer, brush);
+        int n = 40;
+        for (int i = 0; i <= n; i++) {
+            float t = i / (float) n;
+            s.addPoint(w * 0.06f + t * w * 0.88f,
+                    h / 2f + (float) Math.sin(t * Math.PI * 2) * h * 0.16f,
+                    (float) Math.max(0.15, Math.sin(t * Math.PI)));
+        }
+        return unpremultiplied(layer, w, h);
+    }
+
+    private static Bitmap unpremultiplied(Layer layer, int w, int h) {
+        int[] px = new int[w * h];
+        for (int y = 0; y < h; y++) {
+            for (int x = 0; x < w; x++) {
+                int p = layer.getPixel(x, y);
+                int a = p >>> 24;
+                if (a == 0) {
+                    continue;
+                }
+                if (a == 255) {
+                    px[y * w + x] = p;
+                } else {
+                    int r = Math.min(255, ((p >> 16) & 0xFF) * 255 / a);
+                    int g = Math.min(255, ((p >> 8) & 0xFF) * 255 / a);
+                    int b = Math.min(255, (p & 0xFF) * 255 / a);
+                    px[y * w + x] = (a << 24) | (r << 16) | (g << 8) | b;
+                }
+            }
+        }
+        return Bitmap.createBitmap(px, w, h, Bitmap.Config.ARGB_8888);
+    }
+
     private void showBrush() {
         LinearLayout box = new LinearLayout(act);
         box.setOrientation(LinearLayout.VERTICAL);
-        box.addView(label(act.getString(R.string.brush_settings), 16, fg));
+        box.addView(label(act.getString(R.string.brush_settings) + " (" + PRESETS.length + ")", 20,
+                fg));
 
-        BrushPreview preview = new BrushPreview(act, null);
-        box.addView(preview, new LinearLayout.LayoutParams(dp(64), dp(64)));
+        int sampleW = Math.min(dp(360), panelWidth(420) - dp(24));
+        final ImageView big = new ImageView(act);
+        big.setBackground(round(Color.WHITE, 10));
+        big.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(76));
+        bp.topMargin = dp(8);
+        box.addView(big, bp);
+        big.setImageBitmap(strokeSample(PRESETS[brushIndex], sampleW, dp(76)));
 
-        final TextView sizeText = label("", 14, fg);
-        final TextView flowText = label("", 14, fg);
-        final Slider size = slider(1, 150, sizePos);
-        final Slider flow = slider(1, 100, flowPos);
-        box.addView(label(act.getString(R.string.size), 12, fgDim));
-        box.addView(sliderRow(sizeText, size));
-        box.addView(label(act.getString(R.string.flow), 12, fgDim));
-        box.addView(sliderRow(flowText, flow));
+        final LinearLayout rows = new LinearLayout(act);
+        rows.setOrientation(LinearLayout.VERTICAL);
+        rows.setBackground(round(Color.WHITE, 10));
+        final int rowH = dp(60);
+        for (int i = 0; i < PRESETS.length; i++) {
+            final int idx = i;
+            final Object[] pr = PRESETS[i];
+            FrameLayout row = new FrameLayout(act);
+            row.setBackgroundColor(i == brushIndex ? 0xFFD6E6FB : Color.TRANSPARENT);
+            ImageView img = new ImageView(act);
+            img.setScaleType(ImageView.ScaleType.FIT_CENTER);
+            img.setImageBitmap(strokeSample(pr, sampleW, rowH));
+            row.addView(img, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, rowH));
+            TextView name = label((String) pr[0], 13, Color.BLACK);
+            name.setPadding(dp(8), 0, 0, dp(4));
+            row.addView(name, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM | Gravity.START));
+            TextView size = label(Math.round(radiusFor((Float) pr[3])) + ".0", 13, Color.BLACK);
+            size.setPadding(0, dp(2), dp(10), 0);
+            row.addView(size, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP | Gravity.END));
+            row.setOnClickListener(v -> {
+                brushIndex = idx;
+                hardness = (Float) pr[1];
+                spacing = (Float) pr[2];
+                sizeSlider.setValue((Float) pr[3]);
+                flowSlider.setValue((Float) pr[4]);
+                applyBrush();
+                big.setImageBitmap(strokeSample(pr, sampleW, dp(76)));
+                for (int k = 0; k < rows.getChildCount(); k++) {
+                    rows.getChildAt(k).setBackgroundColor(k == idx ? 0xFFD6E6FB : Color.TRANSPARENT);
+                }
+            });
+            rows.addView(row);
+        }
+        ScrollView list = new ScrollView(act);
+        list.addView(rows);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                Math.min(rowH * PRESETS.length, act.getResources().getDisplayMetrics().heightPixels / 3));
+        lp.topMargin = dp(8);
+        box.addView(list, lp);
 
-        Runnable apply = () -> {
-            sizePos = size.getValue();
-            flowPos = flow.getValue();
-            float r = radiusFor(sizePos);
-            canvas.setRadius(r);
-            canvas.setFlow(flowPos / 100f);
-            sizeText.setText(String.valueOf(Math.round(r)));
-            flowText.setText(String.valueOf(Math.round(flowPos)));
-            preview.setBrush(color, sizePos / 150f);
-        };
-        size.addOnChangeListener((s, v, user) -> apply.run());
-        flow.addOnChangeListener((s, v, user) -> apply.run());
-        apply.run();
-        show(box, brushButton, panelWidth(340));
+        brushSizeText = label("", 14, fg);
+        brushFlowText = label("", 14, fg);
+        brushSizeP = slider(1, 150, sizePos);
+        brushFlowP = slider(1, 100, flowPos);
+        LinearLayout t1 = new LinearLayout(act);
+        t1.addView(label(act.getString(R.string.size), 16, fg), new LinearLayout.LayoutParams(0,
+                ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        t1.addView(brushSizeText);
+        LinearLayout t2 = new LinearLayout(act);
+        t2.addView(label(act.getString(R.string.flow), 16, fg), new LinearLayout.LayoutParams(0,
+                ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        t2.addView(brushFlowText);
+        box.addView(t1);
+        box.addView(stepRow(brushSizeP));
+        box.addView(t2);
+        box.addView(stepRow(brushFlowP));
+        brushSizeP.addOnChangeListener((sl, v, user) -> {
+            if (user) {
+                sizeSlider.setValue(v);
+            }
+        });
+        brushFlowP.addOnChangeListener((sl, v, user) -> {
+            if (user) {
+                flowSlider.setValue(v);
+            }
+        });
+        applyBrush();
+        final PopupWindow pw = show(box, brushButton, panelWidth(420));
+        pw.setOnDismissListener(() -> {
+            if (open == pw) {
+                open = null;
+                colorSync = null;
+            }
+            brushSizeText = null;
+            brushFlowText = null;
+            brushSizeP = null;
+            brushFlowP = null;
+        });
+    }
+
+    /** Minus, slider, plus. */
+    private LinearLayout stepRow(Slider s) {
+        LinearLayout row = new LinearLayout(act);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        ImageButton minus = stepButton(R.drawable.ic_minus);
+        ImageButton plus = stepButton(R.drawable.ic_add);
+        row.addView(minus, new LinearLayout.LayoutParams(dp(36), dp(36)));
+        row.addView(s, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        row.addView(plus, new LinearLayout.LayoutParams(dp(36), dp(36)));
+        minus.setOnClickListener(v -> s.setValue(Math.max(s.getValueFrom(), s.getValue() - 1)));
+        plus.setOnClickListener(v -> s.setValue(Math.min(s.getValueTo(), s.getValue() + 1)));
+        s.addOnChangeListener((sl, v, user) -> {
+            if (!user) {
+                if (s == brushSizeP) {
+                    sizeSlider.setValue(v);
+                } else if (s == brushFlowP) {
+                    flowSlider.setValue(v);
+                }
+            }
+        });
+        return row;
     }
 
     // ------------------------------------------------------------------ colour

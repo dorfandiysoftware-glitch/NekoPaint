@@ -231,6 +231,15 @@ public class CanvasView extends View {
     }
 
     /** @param value 0.01 to 1 */
+    private float hardness = 0.8f;
+    private float spacing = 0.15f;
+
+    /** @param hardness 0 (soft edge) to 1 (hard edge) @param spacing distance between dabs, as a fraction of the diameter */
+    public void setBrushShape(float hardness, float spacing) {
+        this.hardness = Math.max(0f, Math.min(1f, hardness));
+        this.spacing = Math.max(0.02f, Math.min(1f, spacing));
+    }
+
     public void setFlow(float value) {
         flow = Math.max(0.01f, Math.min(1f, value));
     }
@@ -563,7 +572,7 @@ public class CanvasView extends View {
         }
         Brush brush = eraser
                 ? Brush.eraser(radius)
-                : new Brush(color, radius, 0.8f, flow, 0.15f, false);
+                : new Brush(color, radius, hardness, flow, spacing, false);
         final Job j = new Job(brush, activeLayer);
         job = j;
         worker.execute(new Runnable() {
