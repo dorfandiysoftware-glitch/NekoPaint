@@ -23,6 +23,11 @@ public final class StrokeRasterizer {
     private final int width;
     private final int height;
 
+    private final boolean useNative = NativeStroke.AVAILABLE && !Boolean.getBoolean("nekopaint.java");
+    private final float[] nativeF = new float[4];
+    private final int[] nativeI = {0, Integer.MAX_VALUE, Integer.MAX_VALUE, -1, -1,
+            Integer.MAX_VALUE, Integer.MAX_VALUE, -1, -1};
+
     private boolean hasLast;
     private float lastX;
     private float lastY;
@@ -57,6 +62,12 @@ public final class StrokeRasterizer {
      * @param pressure 0..1; values outside are clamped, NaN counts as 0
      */
     public void addPoint(float x, float y, float pressure) {
+        if (useNative) {
+            NativeStroke.addPoint(pixels, width, height, brush.getRgb(), brush.getRadius(),
+                    brush.getHardness(), brush.getFlow(), brush.getSpacing(), brush.isEraser(),
+                    nativeF, nativeI, x, y, pressure);
+            return;
+        }
         if (Float.isNaN(x) || Float.isNaN(y) || Float.isInfinite(x) || Float.isInfinite(y)) {
             return;
         }
@@ -98,6 +109,15 @@ public final class StrokeRasterizer {
      *         latest input points touched.
      */
     public Rect takeChanged() {
+        if (useNative) {
+            Rect n = nativeI[3] < 0 ? Rect.EMPTY
+                    : new Rect(nativeI[1], nativeI[2], nativeI[3] + 1, nativeI[4] + 1);
+            nativeI[1] = Integer.MAX_VALUE;
+            nativeI[2] = Integer.MAX_VALUE;
+            nativeI[3] = -1;
+            nativeI[4] = -1;
+            return n;
+        }
         Rect r = pendMaxX < 0
                 ? Rect.EMPTY
                 : new Rect(pendMinX, pendMinY, pendMaxX + 1, pendMaxY + 1);
@@ -110,6 +130,10 @@ public final class StrokeRasterizer {
 
     /** @return the smallest rectangle containing every pixel that changed, or empty */
     public Rect getDirty() {
+        if (useNative) {
+            return nativeI[7] < 0 ? Rect.EMPTY
+                    : new Rect(nativeI[5], nativeI[6], nativeI[7] + 1, nativeI[8] + 1);
+        }
         return maxX < 0 ? Rect.EMPTY : new Rect(minX, minY, maxX + 1, maxY + 1);
     }
 
