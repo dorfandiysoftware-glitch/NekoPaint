@@ -128,4 +128,21 @@
     <string name="gpu_note">Поки що вибір лише запам\'ятовується. Сам графічний рушій з\'явиться в наступному оновленні.</string>
     <string name="perf_meter">Показувати лічильник продуктивності</string>
     <string name="perf_meter_hint">Невеликий рядок у редакторі з часом малювання. Корисно, поки рушій налаштовується.</string>
+    <string name="tools">Інструменти</string>
+    <string name="brush_settings">Пензель</string>
+    <string name="lite_mode">Легший інтерфейс</string>
+    <string name="tool_soon">Цей інструмент з\'явиться згодом</string>
+    <string name="tool_transform">Трансформація</string>
+    <string name="tool_wand">Чарівна паличка</string>
+    <string name="tool_lasso">Ласо</string>
+    <string name="tool_filter">Фільтр</string>
+    <string name="tool_smudge">Розмазування</string>
+    <string name="tool_blur">Розмиття</string>
+    <string name="tool_special">Спецперо</string>
+    <string name="tool_bucket">Заливка</string>
+    <string name="tool_vector">Вектор</string>
+    <string name="tool_text">Текст</string>
+    <string name="tool_frame">Розділювач кадрів</string>
+    <string name="tool_picker">Піпетка</string>
+    <string name="tool_canvas">Полотно</string>
 </resources>

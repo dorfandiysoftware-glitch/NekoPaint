@@ -129,4 +129,21 @@
     <string name="gpu_note">For now the choice is only remembered. The graphics engine itself arrives in a later update.</string>
     <string name="perf_meter">Show performance meter</string>
     <string name="perf_meter_hint">A small line in the editor with how long drawing takes. Useful while the engine is being tuned.</string>
+    <string name="tools">Tools</string>
+    <string name="brush_settings">Brush</string>
+    <string name="lite_mode">Lighter interface</string>
+    <string name="tool_soon">This tool is coming soon</string>
+    <string name="tool_transform">Transform</string>
+    <string name="tool_wand">Magic wand</string>
+    <string name="tool_lasso">Lasso</string>
+    <string name="tool_filter">Filter</string>
+    <string name="tool_smudge">Smudge</string>
+    <string name="tool_blur">Blur</string>
+    <string name="tool_special">Special pen</string>
+    <string name="tool_bucket">Bucket</string>
+    <string name="tool_vector">Vector</string>
+    <string name="tool_text">Text</string>
+    <string name="tool_frame">Frame divider</string>
+    <string name="tool_picker">Eyedropper</string>
+    <string name="tool_canvas">Canvas</string>
 </resources>

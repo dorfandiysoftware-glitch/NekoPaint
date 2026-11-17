@@ -468,6 +468,35 @@ public class CanvasView extends View {
 
     // ------------------------------------------------------------------ touch
 
+    /** Receives colours picked with the eyedropper. */
+    public interface PickListener {
+        void onPick(int rgb);
+    }
+
+    private PickListener picker;
+
+    /** @param l the listener to turn the eyedropper on, or null to go back to painting */
+    public void setPicker(PickListener l) {
+        picker = l;
+    }
+
+    private void pickAt(MotionEvent e) {
+        if (document == null || picker == null) {
+            return;
+        }
+        matrix.invert(inverse);
+        point[0] = e.getX(0);
+        point[1] = e.getY(0);
+        inverse.mapPoints(point);
+        int x = (int) Math.floor(point[0]);
+        int y = (int) Math.floor(point[1]);
+        if (x < 0 || y < 0 || x >= document.getWidth() || y >= document.getHeight()) {
+            return;
+        }
+        int[] px = document.flattenRect(new Rect(x, y, x + 1, y + 1), PAPER);
+        picker.onPick(px[0] & 0xFFFFFF);
+    }
+
     @Override
     public boolean onTouchEvent(MotionEvent e) {
         if (!interactive) {
@@ -477,6 +506,10 @@ public class CanvasView extends View {
         switch (e.getActionMasked()) {
             case MotionEvent.ACTION_DOWN:
                 gesturing = false;
+                if (picker != null) {
+                    pickAt(e);
+                    return true;
+                }
                 beginStroke();
                 addPoints(e);
                 return true;
@@ -497,6 +530,8 @@ public class CanvasView extends View {
                         lastMidY = my;
                         invalidate();
                     }
+                } else if (picker != null) {
+                    pickAt(e);
                 } else {
                     addPoints(e);
                 }
@@ -507,7 +542,7 @@ public class CanvasView extends View {
                 lastMidY = midYExcluding(e, e.getActionIndex());
                 return true;
             case MotionEvent.ACTION_UP:
-                if (!gesturing) {
+                if (!gesturing && picker == null) {
                     addPoints(e);
                     endStroke();
                 }
