@@ -42,3 +42,37 @@ JNIEXPORT void JNICALL Java_nekopaint_core_NativeStroke_addPoint(
     (*env)->SetFloatArrayRegion(env, fs, 0, 4, f);
     (*env)->SetIntArrayRegion(env, is, 0, 9, i9);
 }
+
+#include <stdlib.h>
+#define NP_MAX_LAYERS 64
+
+JNIEXPORT jboolean JNICALL Java_nekopaint_core_NativeStroke_flattenTiles(
+    JNIEnv *env, jclass cls, jobjectArray layers, jintArray opacity, jint nlayers,
+    jint width, jint height, jint background, jintArray tiles, jint ntiles, jint tile,
+    jintArray out, jboolean rgba)
+{
+    np_layer l[NP_MAX_LAYERS];
+    jintArray arrs[NP_MAX_LAYERS];
+    jint *ptrs[NP_MAX_LAYERS];
+    jint op[NP_MAX_LAYERS];
+    jint *t, *o;
+    int i;
+    (void)cls;
+    if (nlayers < 0 || nlayers > NP_MAX_LAYERS) return JNI_FALSE;
+    (*env)->GetIntArrayRegion(env, opacity, 0, nlayers, op);
+    for (i = 0; i < nlayers; i++) arrs[i] = (jintArray)(*env)->GetObjectArrayElement(env, layers, i);
+    for (i = 0; i < nlayers; i++) {
+        ptrs[i] = (jint *)(*env)->GetPrimitiveArrayCritical(env, arrs[i], 0);
+        l[i].px = (const np_u32 *)ptrs[i];
+        l[i].opacity = op[i];
+    }
+    t = (jint *)(*env)->GetPrimitiveArrayCritical(env, tiles, 0);
+    o = (jint *)(*env)->GetPrimitiveArrayCritical(env, out, 0);
+    np_flatten_tiles(l, nlayers, width, height, (np_u32)background, (const int *)t, ntiles, tile,
+                     (np_u32 *)o, rgba ? 1 : 0);
+    (*env)->ReleasePrimitiveArrayCritical(env, out, o, 0);
+    (*env)->ReleasePrimitiveArrayCritical(env, tiles, t, JNI_ABORT);
+    for (i = nlayers - 1; i >= 0; i--) (*env)->ReleasePrimitiveArrayCritical(env, arrs[i], ptrs[i], JNI_ABORT);
+    for (i = 0; i < nlayers; i++) (*env)->DeleteLocalRef(env, arrs[i]);
+    return JNI_TRUE;
+}

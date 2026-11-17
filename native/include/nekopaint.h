@@ -45,6 +45,21 @@ void np_stroke_init(np_stroke *s);
 void np_stroke_add_point(np_stroke *s, np_u32 *px, int width, int height,
                          const np_brush *b, float x, float y, float pressure);
 
+typedef struct np_layer {
+    const np_u32 *px;  /* width * height premultiplied ARGB */
+    int opacity;       /* 1..255 */
+} np_layer;
+
+/*
+ * Composites NORMAL-mode layers (bottom first) over a background into square-ish tiles.
+ * tiles = x,y pairs (pixels) of ntiles tile origins. Tile k is written at out + k*tile*tile, packed
+ * with the tile's real width (min(tile, width-x)). If rgba_bytes is set the words are stored as
+ * 0xAABBGGRR, i.e. the byte order of Android ARGB_8888 bitmaps.
+ */
+void np_flatten_tiles(const np_layer *layers, int nlayers, int width, int height,
+                      np_u32 background, const int *tiles, int ntiles, int tile,
+                      np_u32 *out, int rgba_bytes);
+
 /* Clears the pending rectangle (after the caller has read it). */
 void np_stroke_reset_pending(np_stroke *s);
 

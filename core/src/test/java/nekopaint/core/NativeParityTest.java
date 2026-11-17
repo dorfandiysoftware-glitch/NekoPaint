@@ -106,4 +106,43 @@ public class NativeParityTest {
             }
         }
     }
+
+    @Test
+    public void flattenTilesMatchesJava() {
+        Assume.assumeTrue(NativeStroke.AVAILABLE);
+        Random rnd = new Random(11);
+        int w = 300;
+        int h = 270;
+        Document doc = new Document(w, h);
+        for (int n = 0; n < 3; n++) {
+            Layer l = doc.addLayer("l" + n);
+            int[] px = l.pixels();
+            for (int i = 0; i < px.length; i++) {
+                int a = rnd.nextInt(4) == 0 ? 0 : rnd.nextInt(256);
+                px[i] = PixelOps.premultiply((a << 24) | rnd.nextInt(0x1000000));
+            }
+            l.setOpacity(n == 1 ? 140 : 255);
+        }
+        int tile = 128;
+        int[] origins = {0, 0, 128, 0, 256, 0, 0, 128, 128, 128, 256, 128, 0, 256, 256, 256};
+        int[] a = new int[8 * tile * tile];
+        int[] b = new int[8 * tile * tile];
+        for (int swap = 0; swap < 2; swap++) {
+            System.setProperty("nekopaint.java", "true");
+            try {
+                doc.flattenTiles(origins, 8, tile, 0xFFFFFFFF, a, swap == 1);
+            } finally {
+                System.clearProperty("nekopaint.java");
+            }
+            doc.flattenTiles(origins, 8, tile, 0xFFFFFFFF, b, swap == 1);
+            for (int k = 0; k < 8; k++) {
+                int tw = Math.min(tile, w - origins[2 * k]);
+                int th = Math.min(tile, h - origins[2 * k + 1]);
+                for (int i = 0; i < tw * th; i++) {
+                    assertEquals("tile " + k + " px " + i, a[k * tile * tile + i],
+                            b[k * tile * tile + i]);
+                }
+            }
+        }
+    }
 }

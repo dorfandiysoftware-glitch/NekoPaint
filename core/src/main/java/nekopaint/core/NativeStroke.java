@@ -33,4 +33,8 @@ final class NativeStroke {
     static native void addPoint(int[] pixels, int width, int height, int rgb, float radius,
             float hardness, float flow, float spacing, boolean eraser, float[] fs, int[] is,
             float x, float y, float pressure);
+
+    static native boolean flattenTiles(int[][] layers, int[] opacity, int count, int width,
+            int height, int background, int[] tiles, int ntiles, int tile, int[] out,
+            boolean rgbaBytes);
 }

@@ -83,23 +83,6 @@ public class CanvasView extends View {
     }
 
     /** A freshly flattened piece of a tile, made by the worker and copied in by the UI thread. */
-    private static final class TileUpdate {
-        final int key;
-        final int left;
-        final int top;
-        final int width;
-        final int height;
-        final int[] pixels;
-
-        TileUpdate(int key, int left, int top, int width, int height, int[] pixels) {
-            this.key = key;
-            this.left = left;
-            this.top = top;
-            this.width = width;
-            this.height = height;
-            this.pixels = pixels;
-        }
-    }
 
     private Job job;
     private volatile boolean canUndoNow;
@@ -598,42 +581,56 @@ public class CanvasView extends View {
         return any;
     }
 
-    /** Worker: flattens the changed tiles and hands them to the UI thread. */
+    private final java.util.concurrent.ConcurrentLinkedQueue<int[]> bufferPool =
+            new java.util.concurrent.ConcurrentLinkedQueue<int[]>();
+
+    /** Worker: flattens the changed tiles (whole tiles, natively) and hands them to the UI thread. */
     private void publish(final Rect changed, long startNanos) {
         if (changed.isEmpty()) {
             return;
         }
         final Document doc = document;
         final int across = tilesAcross;
-        final List<TileUpdate> updates = new ArrayList<TileUpdate>();
-        for (int ty = changed.top / TILE; ty <= (changed.bottom - 1) / TILE; ty++) {
-            for (int tx = changed.left / TILE; tx <= (changed.right - 1) / TILE; tx++) {
-                int ox = tx * TILE;
-                int oy = ty * TILE;
-                int l = Math.max(changed.left, ox);
-                int t = Math.max(changed.top, oy);
-                int r = Math.min(Math.min(changed.right, ox + TILE), doc.getWidth());
-                int b = Math.min(Math.min(changed.bottom, oy + TILE), doc.getHeight());
-                if (r <= l || b <= t) {
-                    continue;
-                }
-                int[] px = new int[(r - l) * (b - t)];
-                doc.flattenRect(new Rect(l, t, r, b), PAPER, px);
-                updates.add(new TileUpdate(ty * across + tx, l - ox, t - oy, r - l, b - t, px));
+        int tx0 = changed.left / TILE;
+        int tx1 = (changed.right - 1) / TILE;
+        int ty0 = changed.top / TILE;
+        int ty1 = (changed.bottom - 1) / TILE;
+        final int count = (tx1 - tx0 + 1) * (ty1 - ty0 + 1);
+        final int[] origins = new int[count * 2];
+        final int[] keys = new int[count];
+        int n = 0;
+        for (int ty = ty0; ty <= ty1; ty++) {
+            for (int tx = tx0; tx <= tx1; tx++) {
+                origins[n * 2] = tx * TILE;
+                origins[n * 2 + 1] = ty * TILE;
+                keys[n++] = ty * across + tx;
             }
         }
+        int need = count * TILE * TILE;
+        int[] got = bufferPool.poll();
+        while (got != null && got.length < need) {
+            got = bufferPool.poll();
+        }
+        final int[] buf = got != null ? got : new int[need];
+        doc.flattenTiles(origins, count, TILE, PAPER, buf, true);
         float ms = (System.nanoTime() - startNanos) / 1e6f;
         rasterMs = ms;
         rasterWorstMs = Math.max(ms, rasterWorstMs * 0.98f);
+        final int width = doc.getWidth();
+        final int height = doc.getHeight();
         post(new Runnable() {
             @Override
             public void run() {
-                for (TileUpdate u : updates) {
-                    Bitmap bmp = tiles.get(u.key);
-                    if (bmp != null) {
-                        bmp.setPixels(u.pixels, 0, u.width, u.left, u.top, u.width, u.height);
+                for (int k = 0; k < count; k++) {
+                    Bitmap bmp = tiles.get(keys[k]);
+                    if (bmp != null && bmp.getWidth() == Math.min(TILE, width - origins[2 * k])
+                            && bmp.getHeight() == Math.min(TILE, height - origins[2 * k + 1])) {
+                        bmp.copyPixelsFromBuffer(java.nio.IntBuffer.wrap(buf, k * TILE * TILE,
+                                bmp.getWidth() * bmp.getHeight()));
+                        stale.remove(keys[k]);
                     }
                 }
+                bufferPool.offer(buf);
                 invalidateCanvasRect(changed);
             }
         });

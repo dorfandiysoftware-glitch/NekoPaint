@@ -290,3 +290,98 @@ void np_stroke_add_point(np_stroke *s, np_u32 *px, int width, int height,
     s->last_y = y;
     s->last_p = p;
 }
+
+/* ------------------------------------------------------------------ flatten */
+
+typedef struct fjob {
+    const np_layer *layers;
+    int nlayers, width, height, ntiles, tile, rgba, first, stride;
+    np_u32 bg;
+    const int *tiles;
+    np_u32 *out;
+} fjob;
+
+static np_u32 swap_rb(np_u32 p)
+{
+    return (p & 0xFF00FF00u) | ((p >> 16) & 0xFFu) | ((p & 0xFFu) << 16);
+}
+
+static void flatten_one(const fjob *f, int k)
+{
+    int x0 = f->tiles[2 * k], y0 = f->tiles[2 * k + 1];
+    int w = imin(f->tile, f->width - x0), h = imin(f->tile, f->height - y0);
+    np_u32 *o = f->out + (size_t)k * (size_t)f->tile * (size_t)f->tile;
+    int y, x, i;
+    if (w <= 0 || h <= 0) return;
+    for (y = 0; y < h; y++) {
+        np_u32 *dst = o + (size_t)y * (size_t)w;
+        for (x = 0; x < w; x++) dst[x] = f->bg;
+        for (i = 0; i < f->nlayers; i++) {
+            const np_u32 *src = f->layers[i].px + (size_t)(y0 + y) * (size_t)f->width + x0;
+            unsigned op = (unsigned)f->layers[i].opacity;
+            for (x = 0; x < w; x++) {
+                np_u32 sp = src[x];
+                unsigned sa;
+                if (sp == 0u) continue;
+                if (op != 255u) {
+                    sp = scale(sp, op);
+                    if ((sp >> 24) == 0u) continue;
+                }
+                sa = sp >> 24;
+                dst[x] = sa == 255u ? sp : over(sp, dst[x], sa);
+            }
+        }
+        if (f->rgba) {
+            for (x = 0; x < w; x++) dst[x] = swap_rb(dst[x]);
+        }
+    }
+}
+
+static void flatten_range(const fjob *f)
+{
+    int k;
+    for (k = f->first; k < f->ntiles; k += f->stride) flatten_one(f, k);
+}
+
+#ifdef NP_THREADS
+static void *fworker(void *arg)
+{
+    flatten_range((const fjob *)arg);
+    return 0;
+}
+#endif
+
+void np_flatten_tiles(const np_layer *layers, int nlayers, int width, int height,
+                      np_u32 background, const int *tiles, int ntiles, int tile,
+                      np_u32 *out, int rgba_bytes)
+{
+    fjob f;
+    f.layers = layers; f.nlayers = nlayers; f.width = width; f.height = height;
+    f.ntiles = ntiles; f.tile = tile; f.rgba = rgba_bytes; f.bg = background;
+    f.tiles = tiles; f.out = out; f.first = 0; f.stride = 1;
+    f.bg = background;
+#ifdef NP_THREADS
+    if (ntiles >= 4) {
+        int n = thread_count();
+        if (n > 1) {
+            fjob jobs[NP_MAX_THREADS];
+            pthread_t th[NP_MAX_THREADS];
+            int started[NP_MAX_THREADS];
+            int i;
+            for (i = 0; i < n; i++) {
+                jobs[i] = f;
+                jobs[i].first = i;
+                jobs[i].stride = n;
+            }
+            for (i = 1; i < n; i++) {
+                started[i] = pthread_create(&th[i], 0, fworker, &jobs[i]) == 0;
+                if (!started[i]) flatten_range(&jobs[i]);
+            }
+            flatten_range(&jobs[0]);
+            for (i = 1; i < n; i++) if (started[i]) pthread_join(th[i], 0);
+            return;
+        }
+    }
+#endif
+    flatten_range(&f);
+}

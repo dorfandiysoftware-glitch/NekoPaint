@@ -130,4 +130,59 @@ public final class Document {
             }
         }
     }
+
+    /**
+     * Flattens many tiles at once, for fast screen updates.
+     *
+     * @param origins x, y (canvas pixels) of each tile's top-left corner, two ints per tile
+     * @param tile    tile side in pixels; tile k is written at {@code out[k * tile * tile]},
+     *                packed with its real width (smaller at the right and bottom edges)
+     * @param rgbaBytes store words as 0xAABBGGRR, the byte order of Android ARGB_8888 bitmaps
+     */
+    public void flattenTiles(int[] origins, int count, int tile, int backgroundArgb, int[] out,
+            boolean rgbaBytes) {
+        int background = PixelOps.premultiply(backgroundArgb);
+        int visible = 0;
+        boolean plain = NativeStroke.AVAILABLE && !Boolean.getBoolean("nekopaint.java");
+        for (Layer layer : layers) {
+            if (layer.isVisible() && layer.getOpacity() > 0) {
+                visible++;
+                if (layer.getBlendMode() != BlendMode.NORMAL) {
+                    plain = false;
+                }
+            }
+        }
+        if (plain && visible <= 64) {
+            int[][] px = new int[visible][];
+            int[] op = new int[visible];
+            int n = 0;
+            for (Layer layer : layers) {
+                if (layer.isVisible() && layer.getOpacity() > 0) {
+                    px[n] = layer.pixels();
+                    op[n++] = layer.getOpacity();
+                }
+            }
+            if (NativeStroke.flattenTiles(px, op, visible, width, height, background, origins,
+                    count, tile, out, rgbaBytes)) {
+                return;
+            }
+        }
+        int[] scratch = new int[tile * tile];
+        for (int k = 0; k < count; k++) {
+            int x = origins[2 * k];
+            int y = origins[2 * k + 1];
+            int w = Math.min(tile, width - x);
+            int h = Math.min(tile, height - y);
+            if (w <= 0 || h <= 0) {
+                continue;
+            }
+            flattenRect(new Rect(x, y, x + w, y + h), backgroundArgb, scratch);
+            int base = k * tile * tile;
+            for (int i = 0; i < w * h; i++) {
+                int p = scratch[i];
+                out[base + i] = rgbaBytes
+                        ? (p & 0xFF00FF00) | ((p >>> 16) & 0xFF) | ((p & 0xFF) << 16) : p;
+            }
+        }
+    }
 }
