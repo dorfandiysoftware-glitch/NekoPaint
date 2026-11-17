@@ -253,10 +253,19 @@ public class MainActivity extends AppCompatActivity {
         slider.setValue(v);
     }
 
+    /** Slider position 1..150 to brush radius: linear up to 50, then growing to 1000. */
+    private static float radiusFor(float position) {
+        if (position <= 50f) {
+            return position;
+        }
+        return (float) (50.0 * Math.pow(20.0, (position - 50.0) / 100.0));
+    }
+
     private void applyBrushSettings() {
-        canvas.setRadius(sizeSlider.getValue());
+        float radius = radiusFor(sizeSlider.getValue());
+        canvas.setRadius(radius);
         canvas.setFlow(flowSlider.getValue() / 100f);
-        sizeValue.setText(String.valueOf((int) sizeSlider.getValue()));
+        sizeValue.setText(String.valueOf(Math.round(radius)));
         flowValue.setText(String.valueOf((int) flowSlider.getValue()));
         preview.setBrush(canvas.getColor(), sizeSlider.getValue() / sizeSlider.getValueTo());
     }
