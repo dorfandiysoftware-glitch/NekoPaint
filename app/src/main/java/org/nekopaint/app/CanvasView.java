@@ -353,9 +353,26 @@ public class CanvasView extends View {
 
     @Override
     protected void onSizeChanged(int w, int h, int oldw, int oldh) {
-        if (!userMoved) {
+        if (oldw == 0 || oldh == 0) {
             fit();
         }
+    }
+
+    private int lastLeft, lastTop;
+    private boolean laidOut;
+
+    @Override
+    protected void onLayout(boolean changed, int l, int t, int r, int b) {
+        super.onLayout(changed, l, t, r, b);
+        // When the bars around the canvas appear or go away the picture stays where it is on
+        // screen instead of jumping to the new centre.
+        if (laidOut && (l != lastLeft || t != lastTop)) {
+            matrix.postTranslate(lastLeft - l, lastTop - t);
+            invalidate();
+        }
+        lastLeft = l;
+        lastTop = t;
+        laidOut = true;
     }
 
     // ------------------------------------------------------------------ tiles

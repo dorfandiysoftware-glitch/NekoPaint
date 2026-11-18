@@ -339,4 +339,17 @@ public final class ProjectLog {
             }
         }
     }
+
+    /**
+     * A recording for a drawing that was not recorded from the start (an imported picture):
+     * layers that already exist are registered so later strokes line up with them. The existing
+     * pixels themselves are not part of the replay.
+     */
+    public static ProjectLog forExisting(Document doc) {
+        ProjectLog log = new ProjectLog(doc.getWidth(), doc.getHeight());
+        for (int i = 0; i < doc.getLayerCount(); i++) {
+            log.addOp(ADD_LAYER, i, 0, doc.getLayer(i).getName());
+        }
+        return log;
+    }
 }

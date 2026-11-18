@@ -148,7 +148,8 @@ public class MainActivity extends AppCompatActivity {
                     return;
                 }
                 projectUri = finalTarget;
-                canvas.setDocument(result.document, result.log);
+                canvas.setDocument(result.document, result.log != null ? result.log
+                        : nekopaint.core.ProjectLog.forExisting(result.document));
                 loaded = true;
                 dirty = wasConverted;
                 ui.refreshLayers();

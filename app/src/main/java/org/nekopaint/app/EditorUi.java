@@ -192,6 +192,9 @@ final class EditorUi {
         liteButton = iconButton(R.drawable.ic_expand_more, R.string.lite_mode);
         moreButton = iconButton(R.drawable.ic_chevron_left, R.string.menu);
         layersButton = iconButton(R.drawable.ic_layers, R.string.layers);
+        // The tap goes to the box around it; a clickable button inside would swallow it.
+        layersButton.setClickable(false);
+        layersButton.setFocusable(false);
 
         FrameLayout brushBox = new FrameLayout(act);
         circle = new BrushPreview(act, null);
