@@ -8,8 +8,11 @@ import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.util.TypedValue;
 import android.view.Gravity;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.animation.DecelerateInterpolator;
+import android.view.animation.OvershootInterpolator;
 import android.widget.FrameLayout;
 import android.widget.GridLayout;
 import android.widget.ImageButton;
@@ -235,7 +238,14 @@ final class EditorUi {
             buttonRow.addView(v, new LinearLayout.LayoutParams(0, dp(56), 1f));
         }
 
-        swapButton.setOnClickListener(v -> setTool(tool == TOOL_ERASER ? TOOL_BRUSH : TOOL_ERASER));
+        for (View v : order) {
+            pressFeedback(v);
+        }
+        swapButton.setOnClickListener(v -> {
+            v.animate().rotationBy(180f).setDuration(220)
+                    .setInterpolator(new DecelerateInterpolator()).start();
+            setTool(tool == TOOL_ERASER ? TOOL_BRUSH : TOOL_ERASER);
+        });
         toolButton.setOnClickListener(v -> showTools());
         brushBox.setOnClickListener(v -> showBrush());
         colorBox.setOnClickListener(v -> showColor(colorBox));
@@ -245,8 +255,30 @@ final class EditorUi {
             dismissPanel();
             host.showMenu(moreButton);
         });
+        canvas.setLockedListener(() -> Toast.makeText(act, R.string.layer_locked,
+                Toast.LENGTH_SHORT).show());
         syncToolIcons();
         applyBrush();
+    }
+
+    /** Buttons shrink a little while pressed and spring back. */
+    @android.annotation.SuppressLint("ClickableViewAccessibility")
+    private void pressFeedback(View v) {
+        v.setOnTouchListener((view, e) -> {
+            switch (e.getActionMasked()) {
+                case MotionEvent.ACTION_DOWN:
+                    view.animate().scaleX(0.86f).scaleY(0.86f).setDuration(80).start();
+                    break;
+                case MotionEvent.ACTION_UP:
+                case MotionEvent.ACTION_CANCEL:
+                    view.animate().scaleX(1f).scaleY(1f).setDuration(220)
+                            .setInterpolator(new OvershootInterpolator(2.5f)).start();
+                    break;
+                default:
+                    break;
+            }
+            return false;
+        });
     }
 
     private void applyBrush() {
@@ -311,13 +343,44 @@ final class EditorUi {
     }
 
     void setLite(boolean on) {
+        if (lite == on && liteButton.getTag() != null) {
+            return;
+        }
+        liteButton.setTag(Boolean.TRUE);
         lite = on;
         dismissPanel();
-        topBar.setVisibility(on ? View.GONE : View.VISIBLE);
-        for (View v : fullBarItems) {
-            v.setVisibility(on ? View.GONE : View.VISIBLE);
-        }
         liteButton.setImageResource(on ? R.drawable.ic_expand_less : R.drawable.ic_expand_more);
+        final View[] all = new View[fullBarItems.length + 1];
+        System.arraycopy(fullBarItems, 0, all, 0, fullBarItems.length);
+        all[all.length - 1] = topBar;
+        final float lift = dp(18);
+        if (on) {
+            // Fade the chrome away first, then take it out of the layout in one step so the
+            // picture only has to be re-anchored once.
+            for (final View v : all) {
+                final float dir = v == topBar ? -lift : lift;
+                v.animate().alpha(0f).translationY(dir).setDuration(160)
+                        .withEndAction(() -> {
+                            if (lite) {
+                                v.setVisibility(View.GONE);
+                                finishLite(true);
+                            }
+                        }).start();
+            }
+        } else {
+            for (final View v : all) {
+                v.animate().cancel();
+                v.setAlpha(0f);
+                v.setTranslationY(v == topBar ? -lift : lift);
+                v.setVisibility(View.VISIBLE);
+                v.animate().alpha(1f).translationY(0f).setDuration(220)
+                        .setInterpolator(new DecelerateInterpolator()).start();
+            }
+            finishLite(false);
+        }
+    }
+
+    private void finishLite(boolean on) {
         LinearLayout.LayoutParams lp = (LinearLayout.LayoutParams) liteButton.getLayoutParams();
         lp.width = on ? dp(56) : 0;
         lp.weight = on ? 0f : 1f;
@@ -356,7 +419,16 @@ final class EditorUi {
     }
 
     void updateLayerCount() {
-        layersCount.setText(String.valueOf(canvas.getDocument().getLayerCount()));
+        String n = String.valueOf(canvas.getDocument().getLayerCount());
+        if (!n.contentEquals(layersCount.getText())) {
+            layersCount.setText(n);
+            layersCount.setScaleX(1.5f);
+            layersCount.setScaleY(1.5f);
+            layersCount.animate().scaleX(1f).scaleY(1f).setDuration(260)
+                    .setInterpolator(new OvershootInterpolator(3f)).start();
+        } else {
+            layersCount.setText(n);
+        }
     }
 
     // ------------------------------------------------------------------ popups
@@ -393,7 +465,16 @@ final class EditorUi {
         int screenW = act.getResources().getDisplayMetrics().widthPixels;
         int x = Math.max(dp(8), Math.min(screenW - widthPx - dp(8),
                 anchorCenterX(anchor) - widthPx / 2));
+        // Slide and fade in from the bar; the Android animation scale setting is respected.
+        shell.setAlpha(0f);
+        shell.setScaleX(0.92f);
+        shell.setScaleY(0.92f);
+        shell.setTranslationY(dp(20));
+        shell.setPivotX(Math.max(0, Math.min(widthPx, anchorCenterX(anchor) - x)));
+        shell.setPivotY(shell.getMeasuredHeight());
         p.showAtLocation(buttonRow, Gravity.TOP | Gravity.START, x, y);
+        shell.animate().alpha(1f).scaleX(1f).scaleY(1f).translationY(0f).setDuration(200)
+                .setInterpolator(new DecelerateInterpolator(1.6f)).start();
         open = p;
         return p;
     }
@@ -783,9 +864,15 @@ final class EditorUi {
         LinearLayout actions = new LinearLayout(act);
         actions.setGravity(Gravity.CENTER);
         actions.addView(actionButton(R.drawable.ic_add, R.string.add_layer, v -> addLayer()), actionLp());
+        actions.addView(actionButton(R.drawable.ic_duplicate, R.string.layer_duplicate,
+                v -> duplicateLayer()), actionLp());
+        actions.addView(actionButton(R.drawable.ic_merge, R.string.layer_merge, v -> mergeLayer()),
+                actionLp());
         actions.addView(actionButton(R.drawable.ic_up, R.string.move_up, v -> moveActive(1)), actionLp());
         actions.addView(actionButton(R.drawable.ic_down, R.string.move_down, v -> moveActive(-1)), actionLp());
         actions.addView(actionButton(R.drawable.ic_delete, R.string.delete_layer, v -> deleteLayer()), actionLp());
+        ImageButton more = actionButton(R.drawable.ic_more, R.string.layer_more, v -> showLayerMenu(v));
+        actions.addView(more, actionLp());
         box.addView(actions);
 
         layerOpacityText = label("100%", 14, fg);
@@ -806,13 +893,11 @@ final class EditorUi {
         blendButton.setPadding(dp(14), dp(10), dp(14), dp(10));
         blendButton.setOnClickListener(v -> {
             PopupMenu m = new PopupMenu(act, v);
-            m.getMenu().add(0, 0, 0, R.string.blend_normal);
-            m.getMenu().add(0, 1, 1, R.string.blend_multiply);
-            m.getMenu().add(0, 2, 2, R.string.blend_screen);
+            for (int i = 0; i < BLEND_MODES.length; i++) {
+                m.getMenu().add(0, i, i, blendName(BLEND_MODES[i]));
+            }
             m.setOnMenuItemClickListener(it -> {
-                BlendMode mode = it.getItemId() == 1 ? BlendMode.MULTIPLY
-                        : it.getItemId() == 2 ? BlendMode.SCREEN : BlendMode.NORMAL;
-                canvas.getEditor().setLayerBlendMode(canvas.getActiveLayer(), mode);
+                canvas.getEditor().setLayerBlendMode(canvas.getActiveLayer(), BLEND_MODES[it.getItemId()]);
                 canvas.layersChanged();
                 host.onLayersEdited();
                 rebuildLayerRows();
@@ -829,6 +914,130 @@ final class EditorUi {
         show(box, anchor, panelWidth(340));
     }
 
+
+    private static final BlendMode[] BLEND_MODES = {
+        BlendMode.NORMAL, BlendMode.DARKEN, BlendMode.MULTIPLY, BlendMode.COLOR_BURN,
+        BlendMode.LIGHTEN, BlendMode.SCREEN, BlendMode.COLOR_DODGE, BlendMode.ADD,
+        BlendMode.OVERLAY, BlendMode.SOFT_LIGHT, BlendMode.HARD_LIGHT, BlendMode.DIFFERENCE,
+        BlendMode.EXCLUSION
+    };
+
+    private String blendName(BlendMode m) {
+        switch (m) {
+            case DARKEN: return act.getString(R.string.blend_darken);
+            case MULTIPLY: return act.getString(R.string.blend_multiply);
+            case COLOR_BURN: return act.getString(R.string.blend_color_burn);
+            case LIGHTEN: return act.getString(R.string.blend_lighten);
+            case SCREEN: return act.getString(R.string.blend_screen);
+            case COLOR_DODGE: return act.getString(R.string.blend_color_dodge);
+            case ADD: return act.getString(R.string.blend_add);
+            case OVERLAY: return act.getString(R.string.blend_overlay);
+            case SOFT_LIGHT: return act.getString(R.string.blend_soft_light);
+            case HARD_LIGHT: return act.getString(R.string.blend_hard_light);
+            case DIFFERENCE: return act.getString(R.string.blend_difference);
+            case EXCLUSION: return act.getString(R.string.blend_exclusion);
+            default: return act.getString(R.string.blend_normal);
+        }
+    }
+
+    private boolean activeLocked() {
+        if (canvas.getDocument().getLayer(canvas.getActiveLayer()).isLocked()) {
+            Toast.makeText(act, R.string.layer_locked, Toast.LENGTH_SHORT).show();
+            return true;
+        }
+        return false;
+    }
+
+    private void duplicateLayer() {
+        Document doc = canvas.getDocument();
+        if (doc.getLayerCount() >= 30 || !canvas.isIdle()) {
+            return;
+        }
+        int at = canvas.getActiveLayer();
+        canvas.getEditor().duplicateLayer(at);
+        canvas.setActiveLayer(at + 1);
+        canvas.layerStructureChanged();
+        layersEdited();
+    }
+
+    private void mergeLayer() {
+        int at = canvas.getActiveLayer();
+        if (at < 1 || !canvas.isIdle()) {
+            return;
+        }
+        if (canvas.getDocument().getLayer(at - 1).isLocked()) {
+            Toast.makeText(act, R.string.layer_locked, Toast.LENGTH_SHORT).show();
+            return;
+        }
+        canvas.getEditor().mergeDown(at);
+        canvas.setActiveLayer(at - 1);
+        canvas.layerStructureChanged();
+        layersEdited();
+    }
+
+    private void showLayerMenu(View anchor) {
+        final int index = canvas.getActiveLayer();
+        final Layer layer = canvas.getDocument().getLayer(index);
+        PopupMenu m = new PopupMenu(act, anchor);
+        m.getMenu().add(0, 1, 0, R.string.layer_rename);
+        m.getMenu().add(0, 2, 1, layer.isLocked() ? R.string.layer_unlock : R.string.layer_lock);
+        m.getMenu().add(0, 3, 2, R.string.layer_clear);
+        m.getMenu().add(0, 4, 3, R.string.layer_flip_h);
+        m.getMenu().add(0, 5, 4, R.string.layer_flip_v);
+        m.setOnMenuItemClickListener(it -> {
+            switch (it.getItemId()) {
+                case 1:
+                    renameLayer(layer);
+                    return true;
+                case 2:
+                    layer.setLocked(!layer.isLocked());
+                    rebuildLayerRows();
+                    return true;
+                default:
+                    break;
+            }
+            if (layer.isLocked()) {
+                Toast.makeText(act, R.string.layer_locked, Toast.LENGTH_SHORT).show();
+                return true;
+            }
+            if (!canvas.isIdle()) {
+                return true;
+            }
+            if (it.getItemId() == 3) {
+                canvas.getEditor().clearLayer(index);
+            } else {
+                canvas.getEditor().flipLayer(index, it.getItemId() == 4);
+            }
+            canvas.layerPixelsEdited();
+            layersEdited();
+            return true;
+        });
+        m.show();
+    }
+
+    private void renameLayer(final Layer layer) {
+        final android.widget.EditText input = new android.widget.EditText(act);
+        input.setSingleLine(true);
+        input.setText(layer.getName());
+        input.setSelection(input.getText().length());
+        FrameLayout wrap = new FrameLayout(act);
+        wrap.setPadding(dp(20), dp(8), dp(20), 0);
+        wrap.addView(input);
+        new com.google.android.material.dialog.MaterialAlertDialogBuilder(act)
+                .setTitle(R.string.layer_name)
+                .setView(wrap)
+                .setPositiveButton(android.R.string.ok, (d, w) -> {
+                    String n = input.getText().toString().trim();
+                    if (!n.isEmpty()) {
+                        layer.setName(n.length() > 40 ? n.substring(0, 40) : n);
+                        rebuildLayerRows();
+                        host.onLayersEdited();
+                    }
+                })
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
+    }
+
     private LinearLayout sliderRowSimple(TextView value, Slider s) {
         LinearLayout row = new LinearLayout(act);
         row.setGravity(Gravity.CENTER_VERTICAL);
@@ -838,7 +1047,7 @@ final class EditorUi {
     }
 
     private LinearLayout.LayoutParams actionLp() {
-        return new LinearLayout.LayoutParams(dp(52), dp(48));
+        return new LinearLayout.LayoutParams(0, dp(48), 1f);
     }
 
     private ImageButton actionButton(int icon, int desc, View.OnClickListener l) {
@@ -952,12 +1161,16 @@ final class EditorUi {
             TextView name = label(layer.getName(), 14, fg);
             name.setSingleLine(true);
             text.addView(name);
-            String mode = layer.getBlendMode() == BlendMode.MULTIPLY ? act.getString(R.string.blend_multiply)
-                    : layer.getBlendMode() == BlendMode.SCREEN ? act.getString(R.string.blend_screen)
-                    : act.getString(R.string.blend_normal);
+            String mode = blendName(layer.getBlendMode());
             text.addView(label(Math.round(layer.getOpacity() * 100f / 255f) + "%  " + mode, 12, fgDim));
             row.addView(text, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
 
+            if (layer.isLocked()) {
+                ImageView lock = new ImageView(act);
+                lock.setImageResource(R.drawable.ic_lock);
+                lock.setImageTintList(ColorStateList.valueOf(fgDim));
+                row.addView(lock, new LinearLayout.LayoutParams(dp(20), dp(20)));
+            }
             ImageButton eye = iconButton(layer.isVisible() ? R.drawable.ic_eye : R.drawable.ic_eye_off,
                     R.string.visibility);
             eye.setOnClickListener(v -> {
@@ -971,15 +1184,19 @@ final class EditorUi {
                 canvas.setActiveLayer(index);
                 rebuildLayerRows();
             });
+            row.setOnLongClickListener(v -> {
+                canvas.setActiveLayer(index);
+                rebuildLayerRows();
+                showLayerMenu(v);
+                return true;
+            });
             layerRows.addView(row);
         }
         Layer active = doc.getLayer(canvas.getActiveLayer());
         syncing = true;
         layerOpacity.setValue(Math.round(active.getOpacity() * 100f / 255f));
         layerOpacityText.setText(Math.round(active.getOpacity() * 100f / 255f) + "%");
-        blendButton.setText(active.getBlendMode() == BlendMode.MULTIPLY ? R.string.blend_multiply
-                : active.getBlendMode() == BlendMode.SCREEN ? R.string.blend_screen
-                : R.string.blend_normal);
+        blendButton.setText(blendName(active.getBlendMode()));
         syncing = false;
     }
 }

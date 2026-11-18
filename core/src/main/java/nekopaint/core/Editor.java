@@ -112,6 +112,128 @@ public final class Editor {
     }
 
     /**
+     * Copies a layer (pixels, opacity, blend mode) just above itself. Clears the undo history.
+     */
+    public Layer duplicateLayer(int index) {
+        requireNoStroke();
+        Layer src = document.getLayer(index);
+        Layer copy = addLayer(src.getName() + " copy", index + 1);
+        copy.pasteRect(new Rect(0, 0, src.getWidth(), src.getHeight()), src.copyPixels());
+        copy.setOpacity(src.getOpacity());
+        copy.setBlendMode(src.getBlendMode());
+        copy.setVisible(src.isVisible());
+        return copy;
+    }
+
+    /**
+     * Draws a layer onto the one below it (using its opacity and blend mode) and removes it.
+     * Clears the undo history.
+     *
+     * @throws IllegalArgumentException if there is no layer below
+     */
+    public void mergeDown(int index) {
+        requireNoStroke();
+        if (index < 1 || index >= document.getLayerCount()) {
+            throw new IllegalArgumentException("There is no layer below");
+        }
+        Layer top = document.getLayer(index);
+        Layer base = document.getLayer(index - 1);
+        if (top.isVisible() && top.getOpacity() > 0) {
+            int[] t = top.copyPixels();
+            int[] b = base.copyPixels();
+            int opacity = top.getOpacity();
+            BlendMode mode = top.getBlendMode();
+            for (int i = 0; i < b.length; i++) {
+                int s = t[i];
+                if (s == 0) {
+                    continue;
+                }
+                if (opacity != 255) {
+                    s = PixelOps.scale(s, opacity);
+                    if (PixelOps.alpha(s) == 0) {
+                        continue;
+                    }
+                }
+                b[i] = mode.blend(s, b[i]);
+            }
+            base.pasteRect(new Rect(0, 0, base.getWidth(), base.getHeight()), b);
+        }
+        removeLayer(index);
+    }
+
+    /** Erases a layer. Can be undone. */
+    public void clearLayer(int index) {
+        Layer l = document.getLayer(index);
+        replacePixels(index, new int[l.getWidth() * l.getHeight()]);
+    }
+
+    /** Mirrors a layer's picture. Can be undone. */
+    public void flipLayer(int index, boolean horizontal) {
+        Layer l = document.getLayer(index);
+        int w = l.getWidth();
+        int h = l.getHeight();
+        int[] src = l.copyPixels();
+        int[] dst = new int[src.length];
+        for (int y = 0; y < h; y++) {
+            for (int x = 0; x < w; x++) {
+                int sx = horizontal ? w - 1 - x : x;
+                int sy = horizontal ? y : h - 1 - y;
+                dst[y * w + x] = src[sy * w + sx];
+            }
+        }
+        replacePixels(index, dst);
+    }
+
+    /** Replaces all pixels of a layer, recording the changed tiles so the edit can be undone. */
+    private void replacePixels(int index, int[] after) {
+        requireNoStroke();
+        Layer layer = document.getLayer(index);
+        int w = layer.getWidth();
+        int h = layer.getHeight();
+        int across = (w + TILE - 1) / TILE;
+        int down = (h + TILE - 1) / TILE;
+        int[] keys = new int[across * down];
+        int[][] before = new int[keys.length][];
+        int[][] now = new int[keys.length][];
+        int count = 0;
+        Rect bounds = Rect.EMPTY;
+        for (int ty = 0; ty < down; ty++) {
+            for (int tx = 0; tx < across; tx++) {
+                int key = ty * across + tx;
+                Rect r = tileRect(key, across, w, h);
+                int[] old = layer.copyRect(r);
+                int rw = r.width();
+                int[] fresh = new int[old.length];
+                for (int y = 0; y < r.height(); y++) {
+                    System.arraycopy(after, (r.top + y) * w + r.left, fresh, y * rw, rw);
+                }
+                if (java.util.Arrays.equals(old, fresh)) {
+                    continue;
+                }
+                keys[count] = key;
+                before[count] = old;
+                now[count] = fresh;
+                count++;
+                bounds = bounds.union(r);
+            }
+        }
+        if (count == 0) {
+            return;
+        }
+        Edit edit = new Edit(index, across, java.util.Arrays.copyOf(keys, count),
+                java.util.Arrays.copyOf(before, count), java.util.Arrays.copyOf(now, count),
+                bounds, null);
+        edit.apply(layer, edit.after);
+        lastChanged = bounds;
+        undoStack.addLast(edit);
+        redoStack.clear();
+        while (undoStack.size() > maxHistory
+                || (undoStack.size() > 1 && historyBytes() > MAX_HISTORY_BYTES)) {
+            undoStack.pollFirst();
+        }
+    }
+
+    /**
      * Starts a stroke on a layer.
      *
      * @throws IllegalStateException    if another stroke is in progress

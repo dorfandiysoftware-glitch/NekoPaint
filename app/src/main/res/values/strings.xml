@@ -146,4 +146,26 @@
     <string name="tool_frame">Frame divider</string>
     <string name="tool_picker">Eyedropper</string>
     <string name="tool_canvas">Canvas</string>
+    <string name="layer_rename">Rename</string>
+    <string name="layer_duplicate">Duplicate layer</string>
+    <string name="layer_merge">Merge down</string>
+    <string name="layer_clear">Clear layer</string>
+    <string name="layer_flip_h">Flip horizontally</string>
+    <string name="layer_flip_v">Flip vertically</string>
+    <string name="layer_lock">Lock layer</string>
+    <string name="layer_unlock">Unlock layer</string>
+    <string name="layer_more">More</string>
+    <string name="layer_locked">The layer is locked</string>
+    <string name="layer_name">Layer name</string>
+    <string name="blend_darken">Darken</string>
+    <string name="blend_lighten">Lighten</string>
+    <string name="blend_color_burn">Color burn</string>
+    <string name="blend_color_dodge">Color dodge</string>
+    <string name="blend_add">Add</string>
+    <string name="blend_overlay">Overlay</string>
+    <string name="blend_soft_light">Soft light</string>
+    <string name="blend_hard_light">Hard light</string>
+    <string name="blend_difference">Difference</string>
+    <string name="blend_exclusion">Exclusion</string>
+    <string name="blend_mode">Blend mode</string>
 </resources>

@@ -145,4 +145,26 @@
     <string name="tool_frame">Розділювач кадрів</string>
     <string name="tool_picker">Піпетка</string>
     <string name="tool_canvas">Полотно</string>
+    <string name="layer_rename">Перейменувати</string>
+    <string name="layer_duplicate">Дублювати шар</string>
+    <string name="layer_merge">Злити вниз</string>
+    <string name="layer_clear">Очистити шар</string>
+    <string name="layer_flip_h">Віддзеркалити по горизонталі</string>
+    <string name="layer_flip_v">Віддзеркалити по вертикалі</string>
+    <string name="layer_lock">Заблокувати шар</string>
+    <string name="layer_unlock">Розблокувати шар</string>
+    <string name="layer_more">Ще</string>
+    <string name="layer_locked">Шар заблоковано</string>
+    <string name="layer_name">Назва шару</string>
+    <string name="blend_darken">Затемнення</string>
+    <string name="blend_lighten">Освітлення</string>
+    <string name="blend_color_burn">Випалювання кольору</string>
+    <string name="blend_color_dodge">Освітлення кольору</string>
+    <string name="blend_add">Додавання</string>
+    <string name="blend_overlay">Перекриття</string>
+    <string name="blend_soft_light">М’яке світло</string>
+    <string name="blend_hard_light">Жорстке світло</string>
+    <string name="blend_difference">Різниця</string>
+    <string name="blend_exclusion">Виключення</string>
+    <string name="blend_mode">Режим накладання</string>
 </resources>

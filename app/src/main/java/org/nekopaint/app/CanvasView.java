@@ -333,6 +333,19 @@ public class CanvasView extends View {
         return b;
     }
 
+    /**
+     * Call after an undoable whole-layer edit (clear, flip) made through the editor: refreshes
+     * the picture and the undo buttons.
+     */
+    public void layerPixelsEdited() {
+        cancelStroke();
+        flush();
+        canUndoNow = editor.canUndo();
+        canRedoNow = editor.canRedo();
+        layersChanged();
+        notifyHistory();
+    }
+
     private void notifyHistory() {
         if (listener != null) {
             listener.onHistoryChanged();
@@ -583,9 +596,22 @@ public class CanvasView extends View {
         }
     }
 
+    private Runnable lockedListener;
+
+    /** Called when the person tries to draw on a locked layer. */
+    public void setLockedListener(Runnable r) {
+        lockedListener = r;
+    }
+
     private void beginStroke() {
         if (!document.getLayer(activeLayer).isVisible()) {
             return; // painting on a hidden layer would be invisible
+        }
+        if (document.getLayer(activeLayer).isLocked()) {
+            if (lockedListener != null) {
+                lockedListener.run();
+            }
+            return;
         }
         Brush brush = eraser
                 ? Brush.eraser(radius)

@@ -352,6 +352,26 @@ public final class OpenRaster {
                 return "svg:multiply";
             case SCREEN:
                 return "svg:screen";
+            case DARKEN:
+                return "svg:darken";
+            case LIGHTEN:
+                return "svg:lighten";
+            case COLOR_BURN:
+                return "svg:color-burn";
+            case COLOR_DODGE:
+                return "svg:color-dodge";
+            case ADD:
+                return "svg:plus";
+            case OVERLAY:
+                return "svg:overlay";
+            case SOFT_LIGHT:
+                return "svg:soft-light";
+            case HARD_LIGHT:
+                return "svg:hard-light";
+            case DIFFERENCE:
+                return "svg:difference";
+            case EXCLUSION:
+                return "svg:exclusion";
             default:
                 return "svg:src-over";
         }
@@ -363,6 +383,36 @@ public final class OpenRaster {
         }
         if ("svg:screen".equals(op)) {
             return BlendMode.SCREEN;
+        }
+        if ("svg:darken".equals(op)) {
+            return BlendMode.DARKEN;
+        }
+        if ("svg:lighten".equals(op)) {
+            return BlendMode.LIGHTEN;
+        }
+        if ("svg:color-burn".equals(op)) {
+            return BlendMode.COLOR_BURN;
+        }
+        if ("svg:color-dodge".equals(op)) {
+            return BlendMode.COLOR_DODGE;
+        }
+        if ("svg:plus".equals(op)) {
+            return BlendMode.ADD;
+        }
+        if ("svg:overlay".equals(op)) {
+            return BlendMode.OVERLAY;
+        }
+        if ("svg:soft-light".equals(op)) {
+            return BlendMode.SOFT_LIGHT;
+        }
+        if ("svg:hard-light".equals(op)) {
+            return BlendMode.HARD_LIGHT;
+        }
+        if ("svg:difference".equals(op)) {
+            return BlendMode.DIFFERENCE;
+        }
+        if ("svg:exclusion".equals(op)) {
+            return BlendMode.EXCLUSION;
         }
         return BlendMode.NORMAL;
     }

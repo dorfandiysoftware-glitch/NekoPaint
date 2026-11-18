@@ -18,6 +18,7 @@ public final class Layer {
     private final int[] pixels;
     private String name;
     private boolean visible = true;
+    private boolean locked;
     private int opacity = 255;
     private BlendMode blendMode = BlendMode.NORMAL;
 
@@ -66,6 +67,15 @@ public final class Layer {
 
     public void setVisible(boolean visible) {
         this.visible = visible;
+    }
+
+    /** A locked layer cannot be painted on (kept while the drawing is open). */
+    public boolean isLocked() {
+        return locked;
+    }
+
+    public void setLocked(boolean locked) {
+        this.locked = locked;
     }
 
     /** @return opacity from 0 (invisible) to 255 (opaque) */
