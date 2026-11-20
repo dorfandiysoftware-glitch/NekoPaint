@@ -436,16 +436,46 @@ final class EditorUi {
 
     // ------------------------------------------------------------------ popups
 
+    private View openShell;
+
     private void dismissPanel() {
-        if (open != null) {
-            open.dismiss();
-            open = null;
-        }
+        dismissPanel(true);
+    }
+
+    /** Closes the open panel; with [animate] it fades and shrinks towards the bar first. */
+    private void dismissPanel(boolean animate) {
         colorSync = null;
+        final PopupWindow p = open;
+        final View shell = openShell;
+        open = null;
+        openShell = null;
+        if (p == null) {
+            return;
+        }
+        if (!animate || shell == null || !p.isShowing()) {
+            p.dismiss();
+            return;
+        }
+        shell.animate().cancel();
+        shell.animate().alpha(0f).scaleX(0.92f).scaleY(0.92f)
+                .translationY(shell.getPivotY() == 0f ? -dp(16) : dp(16)).setDuration(150)
+                .setInterpolator(new android.view.animation.AccelerateInterpolator(1.4f))
+                .withEndAction(() -> {
+                    try {
+                        p.dismiss();
+                    } catch (RuntimeException ignored) {
+                        // the window is already gone
+                    }
+                }).start();
     }
 
     private PopupWindow show(View content, View anchor, int widthPx) {
-        dismissPanel();
+        return show(content, anchor, widthPx, false);
+    }
+
+    /** [fromTop]: the panel hangs under the top bar instead of standing on the bottom bar. */
+    private PopupWindow show(View content, View anchor, int widthPx, boolean fromTop) {
+        dismissPanel(false);
         FrameLayout shell = new FrameLayout(act);
         shell.setBackground(round(panelBg, 20));
         shell.setPadding(dp(12), dp(12), dp(12), dp(12));
@@ -454,9 +484,21 @@ final class EditorUi {
         p.setElevation(dp(8));
         p.setBackgroundDrawable(null);
         p.setOutsideTouchable(true);
+        // A tap outside closes the panel with the same animation as the other ways of closing it.
+        p.setTouchInterceptor((v, ev) -> {
+            boolean outside = ev.getAction() == MotionEvent.ACTION_OUTSIDE
+                    || (ev.getAction() == MotionEvent.ACTION_DOWN
+                    && (ev.getX() < 0 || ev.getY() < 0 || ev.getX() > v.getWidth() || ev.getY() > v.getHeight()));
+            if (outside && open == p) {
+                dismissPanel();
+                return true;
+            }
+            return false;
+        });
         p.setOnDismissListener(() -> {
             if (open == p) {
                 open = null;
+                openShell = null;
                 colorSync = null;
             }
         });
@@ -465,6 +507,11 @@ final class EditorUi {
         int[] at = new int[2];
         buttonRow.getLocationOnScreen(at);
         int y = Math.max(dp(8), at[1] - shell.getMeasuredHeight() - dp(8));
+        if (fromTop) {
+            int[] tb = new int[2];
+            topBar.getLocationOnScreen(tb);
+            y = tb[1] + topBar.getHeight() + dp(4);
+        }
         int screenW = act.getResources().getDisplayMetrics().widthPixels;
         int x = Math.max(dp(8), Math.min(screenW - widthPx - dp(8),
                 anchorCenterX(anchor) - widthPx / 2));
@@ -472,13 +519,14 @@ final class EditorUi {
         shell.setAlpha(0f);
         shell.setScaleX(0.92f);
         shell.setScaleY(0.92f);
-        shell.setTranslationY(dp(20));
+        shell.setTranslationY(fromTop ? -dp(20) : dp(20));
         shell.setPivotX(Math.max(0, Math.min(widthPx, anchorCenterX(anchor) - x)));
-        shell.setPivotY(shell.getMeasuredHeight());
+        shell.setPivotY(fromTop ? 0f : shell.getMeasuredHeight());
         p.showAtLocation(buttonRow, Gravity.TOP | Gravity.START, x, y);
         shell.animate().alpha(1f).scaleX(1f).scaleY(1f).translationY(0f).setDuration(200)
                 .setInterpolator(new DecelerateInterpolator(1.6f)).start();
         open = p;
+        openShell = shell;
         return p;
     }
 
@@ -491,6 +539,139 @@ final class EditorUi {
     private int panelWidth(float maxDp) {
         int screenW = act.getResources().getDisplayMetrics().widthPixels;
         return Math.min(dp(maxDp), screenW - dp(16));
+    }
+
+    // ------------------------------------------------------------------ toggles and notices
+
+    private TextView notice;
+    private final Runnable hideNotice = () -> {
+        if (notice != null) {
+            notice.animate().alpha(0f).translationY(-dp(8)).setDuration(220).start();
+        }
+    };
+
+    /** The pill at the top that says what an undo or redo just did. */
+    void showHistoryNotice(boolean undo, String kind) {
+        FrameLayout root = act.findViewById(R.id.root);
+        if (root == null) {
+            return;
+        }
+        if (notice == null) {
+            notice = new TextView(act);
+            notice.setTextColor(Color.WHITE);
+            notice.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15);
+            notice.setGravity(Gravity.CENTER_VERTICAL);
+            notice.setCompoundDrawablePadding(dp(10));
+            notice.setPadding(dp(16), dp(10), dp(18), dp(10));
+            notice.setBackground(round(0xE6000000, 24));
+            notice.setElevation(dp(6));
+            notice.setClickable(false);
+            FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT,
+                    Gravity.TOP | Gravity.CENTER_HORIZONTAL);
+            root.addView(notice, lp);
+        }
+        int what = Editor_KIND_erase.equals(kind) ? R.string.act_erase
+                : Editor_KIND_clear.equals(kind) ? R.string.act_clear
+                : Editor_KIND_flip.equals(kind) ? R.string.act_flip : R.string.act_stroke;
+        notice.setText(act.getString(undo ? R.string.undo_fmt : R.string.redo_fmt, act.getString(what)));
+        android.graphics.drawable.Drawable icon = act.getDrawable(undo ? R.drawable.ic_undo : R.drawable.ic_redo).mutate();
+        icon.setTint(Color.WHITE);
+        icon.setBounds(0, 0, dp(22), dp(22));
+        notice.setCompoundDrawablesRelative(icon, null, null, null);
+        ((FrameLayout.LayoutParams) notice.getLayoutParams()).topMargin = topBar.getBottom() + dp(8);
+        notice.requestLayout();
+        notice.removeCallbacks(hideNotice);
+        notice.animate().cancel();
+        notice.setTranslationY(-dp(10));
+        notice.setAlpha(0f);
+        notice.animate().alpha(1f).translationY(0f).setDuration(160)
+                .setInterpolator(new DecelerateInterpolator()).start();
+        notice.postDelayed(hideNotice, 1300);
+    }
+
+    private static final String Editor_KIND_erase = nekopaint.core.Editor.KIND_ERASE;
+    private static final String Editor_KIND_clear = nekopaint.core.Editor.KIND_CLEAR;
+    private static final String Editor_KIND_flip = nekopaint.core.Editor.KIND_FLIP;
+
+    /** The switches button next to redo: grid, how the picture looks when zoomed, palm rejection. */
+    void showToggles(View anchor) {
+        LinearLayout box = new LinearLayout(act);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.addView(switchRow(R.string.tg_grid, Opts.flag(act, Opts.GRID), on -> {
+            Opts.setFlag(act, Opts.GRID, on);
+            canvas.applySettings();
+        }));
+        TextView sizeText = label("", 13, fgDim);
+        sizeText.setPadding(dp(4), dp(4), 0, 0);
+        Slider size = new Slider(act);
+        size.setValueFrom(8);
+        size.setValueTo(128);
+        size.setStepSize(8);
+        int cur = Math.max(8, Math.min(128, Opts.num(act, Opts.GRID_SIZE)));
+        cur = 8 + Math.round((cur - 8) / 8f) * 8;
+        size.setValue(cur);
+        sizeText.setText(act.getString(R.string.tg_grid_size, cur));
+        size.addOnChangeListener((sl, v, fromUser) -> {
+            sizeText.setText(act.getString(R.string.tg_grid_size, (int) v));
+            if (fromUser) {
+                Opts.setNum(act, Opts.GRID_SIZE, (int) v);
+                canvas.applySettings();
+            }
+        });
+        box.addView(sizeText);
+        box.addView(size);
+
+        TextView zoom = label(act.getString(R.string.tg_zoom), 15, fg);
+        zoom.setPadding(dp(4), dp(12), 0, dp(6));
+        box.addView(zoom);
+        com.google.android.material.button.MaterialButtonToggleGroup g =
+                new com.google.android.material.button.MaterialButtonToggleGroup(act);
+        g.setSingleSelection(true);
+        g.setSelectionRequired(true);
+        boolean smooth = Opts.flag(act, Opts.SMOOTH_ZOOM);
+        int[] names = {R.string.tg_smooth, R.string.tg_pixel};
+        for (int i = 0; i < 2; i++) {
+            com.google.android.material.button.MaterialButton b = new com.google.android.material.button.MaterialButton(
+                    act, null, com.google.android.material.R.attr.materialButtonOutlinedStyle);
+            b.setId(View.generateViewId());
+            b.setText(names[i]);
+            b.setTextColor(fg);
+            g.addView(b, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+            final boolean isSmooth = i == 0;
+            if (isSmooth == smooth) {
+                g.check(b.getId());
+            }
+            b.addOnCheckedChangeListener((btn, on) -> {
+                if (on) {
+                    Opts.setFlag(act, Opts.SMOOTH_ZOOM, isSmooth);
+                    canvas.applySettings();
+                }
+            });
+        }
+        box.addView(g);
+
+        LinearLayout stylus = switchRow(R.string.tg_stylus, Opts.num(act, Opts.PALM) == 1, on -> {
+            Opts.setNum(act, Opts.PALM, on ? 1 : 0);
+            canvas.applySettings();
+        });
+        stylus.setPadding(0, dp(10), 0, 0);
+        box.addView(stylus);
+        show(box, anchor, panelWidth(320), true);
+    }
+
+    private LinearLayout switchRow(int text, boolean on, java.util.function.Consumer<Boolean> change) {
+        LinearLayout row = new LinearLayout(act);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        TextView t = label(act.getString(text), 15, fg);
+        row.addView(t, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        com.google.android.material.materialswitch.MaterialSwitch sw =
+                new com.google.android.material.materialswitch.MaterialSwitch(act);
+        sw.setChecked(on);
+        sw.setOnCheckedChangeListener((b, v) -> change.accept(v));
+        row.addView(sw);
+        row.setPadding(dp(4), dp(2), 0, dp(2));
+        return row;
     }
 
     // ------------------------------------------------------------------ tools

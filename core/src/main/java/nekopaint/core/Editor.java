@@ -173,7 +173,7 @@ public final class Editor {
     /** Erases a layer. Can be undone. */
     public void clearLayer(int index) {
         Layer l = document.getLayer(index);
-        replacePixels(index, new int[l.getWidth() * l.getHeight()]);
+        replacePixels(index, new int[l.getWidth() * l.getHeight()], KIND_CLEAR);
     }
 
     /** Mirrors a layer's picture. Can be undone. */
@@ -190,11 +190,11 @@ public final class Editor {
                 dst[y * w + x] = src[sy * w + sx];
             }
         }
-        replacePixels(index, dst);
+        replacePixels(index, dst, KIND_FLIP);
     }
 
     /** Replaces all pixels of a layer, recording the changed tiles so the edit can be undone. */
-    private void replacePixels(int index, int[] after) {
+    private void replacePixels(int index, int[] after, String kind) {
         requireNoStroke();
         Layer layer = document.getLayer(index);
         int w = layer.getWidth();
@@ -231,7 +231,7 @@ public final class Editor {
         }
         Edit edit = new Edit(index, across, java.util.Arrays.copyOf(keys, count),
                 java.util.Arrays.copyOf(before, count), java.util.Arrays.copyOf(now, count),
-                bounds, null);
+                bounds, null, kind);
         edit.apply(layer, edit.after);
         lastChanged = bounds;
         undoStack.addLast(edit);
@@ -272,6 +272,19 @@ public final class Editor {
         lastChanged = Rect.EMPTY;
     }
 
+    /** Kinds of history entries, for the "Undo: ..." notice. */
+    public static final String KIND_STROKE = "stroke";
+    public static final String KIND_ERASE = "erase";
+    public static final String KIND_CLEAR = "clear";
+    public static final String KIND_FLIP = "flip";
+
+    private String lastKind = KIND_STROKE;
+
+    /** @return what the latest successful undo or redo changed (one of the KIND_ constants) */
+    public String getLastKind() {
+        return lastKind;
+    }
+
     public boolean canUndo() {
         return !undoStack.isEmpty();
     }
@@ -294,6 +307,7 @@ public final class Editor {
         }
         edit.apply(document.getLayer(edit.layerIndex), edit.before);
         lastChanged = edit.bounds;
+        lastKind = edit.kind;
         if (log != null && edit.event != null) {
             log.remove(edit.event);
         }
@@ -315,6 +329,7 @@ public final class Editor {
         }
         edit.apply(document.getLayer(edit.layerIndex), edit.after);
         lastChanged = edit.bounds;
+        lastKind = edit.kind;
         if (log != null && edit.event != null) {
             log.restore(edit.event);
         }
@@ -492,11 +507,12 @@ public final class Editor {
             if (dirty.isEmpty()) {
                 return;
             }
-            ProjectLog.Event event = log == null
-                    ? null : log.addStroke(layerIndex, brush, recorded, recordedCount);
-            Edit edit = buildEdit(event);
+            Edit edit = buildEdit(null);
             if (edit == null) {
-                return;
+                return; // nothing really changed (for example alpha lock on an empty layer)
+            }
+            if (log != null) {
+                edit.event = log.addStroke(layerIndex, brush, recorded, recordedCount);
             }
             undoStack.addLast(edit);
             redoStack.clear();
@@ -578,7 +594,7 @@ public final class Editor {
             }
             return new Edit(layerIndex, tilesAcross, java.util.Arrays.copyOf(keys, count),
                     java.util.Arrays.copyOf(before, count), java.util.Arrays.copyOf(after, count),
-                    bounds, event);
+                    bounds, event, brush.isEraser() ? KIND_ERASE : KIND_STROKE);
         }
     }
 
@@ -597,10 +613,12 @@ public final class Editor {
         final int[][] before;
         final int[][] after;
         final Rect bounds;
-        final ProjectLog.Event event;
+        ProjectLog.Event event;
+        final String kind;
 
         Edit(int layerIndex, int across, int[] keys, int[][] before, int[][] after, Rect bounds,
-                ProjectLog.Event event) {
+                ProjectLog.Event event, String kind) {
+            this.kind = kind;
             this.layerIndex = layerIndex;
             this.across = across;
             this.keys = keys;

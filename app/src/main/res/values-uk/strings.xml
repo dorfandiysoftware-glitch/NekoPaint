@@ -216,4 +216,17 @@
     <string name="cols_3">3 колонки</string>
     <string name="ms_fmt">%1$d мс</string>
     <string name="px_fmt">%1$d dp</string>
+    <string name="toggles">Перемикачі</string>
+    <string name="tg_grid">Сітка</string>
+    <string name="tg_grid_size">Розмір сітки: %1$d px</string>
+    <string name="tg_zoom">Вигляд при збільшенні</string>
+    <string name="tg_smooth">Згладжений</string>
+    <string name="tg_pixel">Пікселі</string>
+    <string name="tg_stylus">Лише стилус (захист від долоні)</string>
+    <string name="undo_fmt">Скасовано: %1$s</string>
+    <string name="redo_fmt">Повернено: %1$s</string>
+    <string name="act_stroke">Мазок пензля</string>
+    <string name="act_erase">Стирання</string>
+    <string name="act_clear">Очищення шару</string>
+    <string name="act_flip">Віддзеркалення шару</string>
 </resources>

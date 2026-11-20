@@ -67,8 +67,9 @@ public class MainActivity extends AppCompatActivity {
                         androidx.core.graphics.ColorUtils.calculateLuminance(backdrop) > 0.5);
         undoButton = findViewById(R.id.btn_undo);
         redoButton = findViewById(R.id.btn_redo);
+        View togglesButton = findViewById(R.id.btn_toggles);
         if (minimal) {
-            for (View b : new View[] {undoButton, redoButton}) {
+            for (View b : new View[] {undoButton, redoButton, togglesButton}) {
                 ((MaterialButton) b).setBackgroundTintList(ColorStateList.valueOf(0x99808080));
                 ((MaterialButton) b).setIconTint(ColorStateList.valueOf(Color.WHITE));
             }
@@ -91,6 +92,8 @@ public class MainActivity extends AppCompatActivity {
                         showMainMenu(anchor);
                     }
                 });
+        togglesButton.setOnClickListener(v -> ui.showToggles(v));
+        canvas.setHistoryListener((undo, kind) -> ui.showHistoryNotice(undo, kind));
         undoButton.setOnClickListener(v -> canvas.undo());
         redoButton.setOnClickListener(v -> canvas.redo());
         canvas.setListener(() -> {

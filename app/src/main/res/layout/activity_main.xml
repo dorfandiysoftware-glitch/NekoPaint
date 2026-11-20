@@ -39,6 +39,18 @@
                 android:layout_height="48dp"
                 android:contentDescription="@string/redo"
                 app:icon="@drawable/ic_redo" />
+
+            <View
+                android:layout_width="8dp"
+                android:layout_height="1dp" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_toggles"
+                style="?attr/materialIconButtonFilledTonalStyle"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:contentDescription="@string/toggles"
+                app:icon="@drawable/ic_toggles" />
         </LinearLayout>
 
         <org.nekopaint.app.CanvasView

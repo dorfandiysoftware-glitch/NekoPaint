@@ -28,10 +28,12 @@ final class Opts {
     static final String OFFSET_X = "t_off_x";
     static final String OFFSET_Y = "t_off_y";
     static final String PALM = "s_palm";
+    static final String GRID = "v_grid";
+    static final String GRID_SIZE = "v_grid_size";
 
     private static final String[] KEYS = {UNDO_TAP, REDO_TAP, QUICK_PICK, QUICK_MS, SMOOTH_ZOOM,
         UNDO_MSG, ADD_CURRENT, TOOL_COLS, TOOL_LABELS, ROW_HEIGHT, BACKDROP, PRESSURE,
-        PRESSURE_CURVE, OFFSET_X, OFFSET_Y, PALM};
+        PRESSURE_CURVE, OFFSET_X, OFFSET_Y, PALM, GRID, GRID_SIZE};
 
     private Opts() {
     }
@@ -41,7 +43,7 @@ final class Opts {
     }
 
     static boolean flag(Context c, String key) {
-        boolean def = true;
+        boolean def = !GRID.equals(key);
         return p(c).getBoolean(key, def);
     }
 
@@ -54,6 +56,7 @@ final class Opts {
             case QUICK_MS: return 500;
             case TOOL_COLS: return 2;
             case ROW_HEIGHT: return 56;
+            case GRID_SIZE: return 32;
             case PRESSURE_CURVE: return 1;
             default: return 0; // BACKDROP 0 = the usual colour, offsets 0, PALM 0 = off
         }

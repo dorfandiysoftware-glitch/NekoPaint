@@ -217,4 +217,17 @@
     <string name="cols_3">3 columns</string>
     <string name="ms_fmt">%1$d ms</string>
     <string name="px_fmt">%1$d dp</string>
+    <string name="toggles">Toggles</string>
+    <string name="tg_grid">Grid</string>
+    <string name="tg_grid_size">Grid size: %1$d px</string>
+    <string name="tg_zoom">Display when zoomed</string>
+    <string name="tg_smooth">Smooth</string>
+    <string name="tg_pixel">Pixelated</string>
+    <string name="tg_stylus">Stylus only (palm rejection)</string>
+    <string name="undo_fmt">Undo: %1$s</string>
+    <string name="redo_fmt">Redo: %1$s</string>
+    <string name="act_stroke">Brush stroke</string>
+    <string name="act_erase">Erase</string>
+    <string name="act_clear">Clear layer</string>
+    <string name="act_flip">Flip layer</string>
 </resources>

@@ -124,13 +124,27 @@ public class CanvasView extends View {
     private boolean fingerPan;
     private boolean quickHeld;
     private PickListener quickPicker;
-    private android.widget.Toast undoToast;
+    private float quickX;
+    private float quickY;
+    private int quickRgb;
+    private boolean optGrid;
+    private int gridSize = 32;
+    private final android.graphics.Paint gridPaint = new android.graphics.Paint();
+    private final android.graphics.Paint pinPaint = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+    private final android.graphics.Path pinPath = new android.graphics.Path();
+    private HistoryListener historyListener;
+
+    /** Told what an undo or redo just changed, so the editor can show a notice. */
+    public interface HistoryListener {
+        void onHistory(boolean undo, String kind);
+    }
+
+    public void setHistoryListener(HistoryListener l) {
+        historyListener = l;
+    }
     private final Runnable quickPickRun = new Runnable() {
         @Override
         public void run() {
-            if (job == null && !quickHeld) {
-                return;
-            }
             cancelStroke();
             quickHeld = true;
             pickAtXY(tapX, tapY, quickPicker);
@@ -177,6 +191,8 @@ public class CanvasView extends View {
         optOffY = Opts.num(c, Opts.OFFSET_Y) * d;
         optPalm = Opts.num(c, Opts.PALM) == 1;
         optUndoMsg = Opts.flag(c, Opts.UNDO_MSG);
+        optGrid = Opts.flag(c, Opts.GRID);
+        gridSize = Math.max(2, Opts.num(c, Opts.GRID_SIZE));
         tilePaint.setFilterBitmap(Opts.flag(c, Opts.SMOOTH_ZOOM));
         invalidate();
     }
@@ -346,6 +362,7 @@ public class CanvasView extends View {
                     return;
                 }
                 final Rect changed = e.getLastChanged();
+                final String kind = e.getLastKind();
                 canUndoNow = e.canUndo();
                 canRedoNow = e.canRedo();
                 post(new Runnable() {
@@ -354,14 +371,8 @@ public class CanvasView extends View {
                         markStale(changed);
                         invalidateCanvasRect(changed);
                         notifyHistory();
-                        if (optUndoMsg) {
-                            if (undoToast != null) {
-                                undoToast.cancel();
-                            }
-                            undoToast = android.widget.Toast.makeText(getContext(),
-                                    undo ? R.string.undone : R.string.redone,
-                                    android.widget.Toast.LENGTH_SHORT);
-                            undoToast.show();
+                        if (optUndoMsg && historyListener != null) {
+                            historyListener.onHistory(undo, kind);
                         }
                     }
                 });
@@ -551,6 +562,12 @@ public class CanvasView extends View {
             }
         }
         canvas.restore();
+        if (optGrid) {
+            drawGrid(canvas);
+        }
+        if (quickHeld) {
+            drawPin(canvas);
+        }
         if (perfVisible) {
             drawMs = drawMs * 0.8f + (System.nanoTime() - start) / 1e6f * 0.2f;
             frames++;
@@ -571,6 +588,61 @@ public class CanvasView extends View {
             canvas.drawRect(4 * d, getHeight() - 24 * d, 12 * d + w, getHeight() - 4 * d, perfBack);
             canvas.drawText(text, 8 * d, getHeight() - 10 * d, perfPaint);
         }
+    }
+
+    /** Thin lines every gridSize pixels of the picture; hidden when they would be too dense. */
+    private void drawGrid(Canvas canvas) {
+        float scale = (float) Math.hypot(values(matrix, Matrix.MSCALE_X), values(matrix, Matrix.MSKEW_Y));
+        float step = gridSize * scale;
+        if (step < 6f * getResources().getDisplayMetrics().density) {
+            return;
+        }
+        float d = getResources().getDisplayMetrics().density;
+        gridPaint.setColor(0x66808080);
+        gridPaint.setStrokeWidth(Math.max(1f, d * 0.8f));
+        matrix.invert(inverse);
+        tmp.set(0, 0, getWidth(), getHeight());
+        inverse.mapRect(tmp);
+        int w = document.getWidth();
+        int h = document.getHeight();
+        float[] p = new float[4];
+        for (int gx = (int) Math.max(0, Math.floor(tmp.left / gridSize)) * gridSize; gx <= w && gx <= tmp.right; gx += gridSize) {
+            p[0] = gx; p[1] = 0; p[2] = gx; p[3] = h;
+            matrix.mapPoints(p);
+            canvas.drawLine(p[0], p[1], p[2], p[3], gridPaint);
+        }
+        for (int gy = (int) Math.max(0, Math.floor(tmp.top / gridSize)) * gridSize; gy <= h && gy <= tmp.bottom; gy += gridSize) {
+            p[0] = 0; p[1] = gy; p[2] = w; p[3] = gy;
+            matrix.mapPoints(p);
+            canvas.drawLine(p[0], p[1], p[2], p[3], gridPaint);
+        }
+    }
+
+    private static float values(Matrix m, int index) {
+        float[] v = new float[9];
+        m.getValues(v);
+        return v[index];
+    }
+
+    /** A pin above the finger that shows the colour being picked, like the eyedropper in ibis. */
+    private void drawPin(Canvas canvas) {
+        float d = getResources().getDisplayMetrics().density;
+        float r = 24f * d;
+        float cx = quickX;
+        float cy = quickY - 1.9f * r;
+        pinPath.reset();
+        pinPath.addCircle(cx, cy, r, android.graphics.Path.Direction.CW);
+        pinPath.moveTo(cx - r * 0.74f, cy + r * 0.68f);
+        pinPath.lineTo(cx, quickY);
+        pinPath.lineTo(cx + r * 0.74f, cy + r * 0.68f);
+        pinPath.close();
+        pinPaint.setStyle(android.graphics.Paint.Style.FILL);
+        pinPaint.setColor(0xFFE6E6E6);
+        pinPaint.setShadowLayer(4f * d, 0, 2f * d, 0x66000000);
+        canvas.drawPath(pinPath, pinPaint);
+        pinPaint.clearShadowLayer();
+        pinPaint.setColor(0xFF000000 | quickRgb);
+        canvas.drawCircle(cx, cy, r * 0.72f, pinPaint);
     }
 
     // ------------------------------------------------------------------ touch
@@ -595,6 +667,11 @@ public class CanvasView extends View {
         if (document == null || target == null) {
             return;
         }
+        boolean quick = target == quickPicker && quickHeld;
+        if (quick) {
+            quickX = sx;
+            quickY = sy;
+        }
         matrix.invert(inverse);
         point[0] = sx;
         point[1] = sy;
@@ -602,9 +679,16 @@ public class CanvasView extends View {
         int x = (int) Math.floor(point[0]);
         int y = (int) Math.floor(point[1]);
         if (x < 0 || y < 0 || x >= document.getWidth() || y >= document.getHeight()) {
+            if (quick) {
+                invalidate();
+            }
             return;
         }
         int[] px = document.flattenRect(new Rect(x, y, x + 1, y + 1), PAPER);
+        if (quick) {
+            quickRgb = px[0] & 0xFFFFFF;
+            invalidate();
+        }
         target.onPick(px[0] & 0xFFFFFF);
     }
 
@@ -638,7 +722,7 @@ public class CanvasView extends View {
                 }
                 beginStroke();
                 addPoints(e);
-                if (optQuickPick && quickPicker != null && job != null) {
+                if (optQuickPick && quickPicker != null) {
                     postDelayed(quickPickRun, optQuickMs);
                 }
                 return true;
@@ -656,7 +740,7 @@ public class CanvasView extends View {
                     pickAtXY(e.getX(0), e.getY(0), quickPicker);
                     return true;
                 }
-                if (Math.abs(e.getX(0) - tapX) > slop() || Math.abs(e.getY(0) - tapY) > slop()) {
+                if (Math.abs(e.getX(0) - tapX) > slop() * 1.6f || Math.abs(e.getY(0) - tapY) > slop() * 1.6f) {
                     removeCallbacks(quickPickRun);
                     if (gesturing) {
                         tapMoved = true;
@@ -688,6 +772,7 @@ public class CanvasView extends View {
                 if (quickHeld) {
                     quickHeld = false;
                     gesturing = false;
+                    invalidate();
                     return true;
                 }
                 if (!gesturing && picker == null) {
@@ -707,6 +792,7 @@ public class CanvasView extends View {
             case MotionEvent.ACTION_CANCEL:
                 removeCallbacks(quickPickRun);
                 quickHeld = false;
+                invalidate();
                 fingerPan = false;
                 cancelStroke();
                 gesturing = false;

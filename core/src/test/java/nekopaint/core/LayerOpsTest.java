@@ -153,4 +153,37 @@ public class LayerOpsTest {
         assertTrue(e.undo());
         assertEquals(0xFF00FF00, l.getPixel(10, 10));
     }
+
+    @Test
+    public void alphaLockOnEmptyLayerAddsNoHistory() {
+        Document d = new Document(40, 20);
+        Layer l = d.addLayer("a");
+        l.setAlphaLock(true);
+        Editor e = new Editor(d, 10);
+        Editor.Stroke s = e.beginStroke(0, new Brush(0xFF0000, 6f, 1f, 1f, 0.15f, false));
+        s.addPoint(2, 10, 1f);
+        s.addPoint(38, 10, 1f);
+        s.end();
+        assertEquals(0, l.getPixel(10, 10));
+        assertTrue(!e.canUndo());
+    }
+
+    @Test
+    public void undoReportsWhatItUndid() {
+        Document d = new Document(40, 20);
+        d.addLayer("a");
+        Editor e = new Editor(d, 10);
+        Editor.Stroke s = e.beginStroke(0, Brush.eraser(4f));
+        s.addPoint(5, 5, 1f);
+        s.end();
+        Editor.Stroke p = e.beginStroke(0, new Brush(0xFF0000, 6f, 1f, 1f, 0.15f, false));
+        p.addPoint(10, 10, 1f);
+        p.end();
+        assertTrue(e.undo());
+        assertEquals(Editor.KIND_STROKE, e.getLastKind());
+        assertTrue(e.redo());
+        e.clearLayer(0);
+        assertTrue(e.undo());
+        assertEquals(Editor.KIND_CLEAR, e.getLastKind());
+    }
 }
