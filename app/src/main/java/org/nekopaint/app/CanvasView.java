@@ -130,6 +130,7 @@ public class CanvasView extends View {
     private boolean optGrid;
     private int gridSize = 32;
     private final android.graphics.Paint gridPaint = new android.graphics.Paint();
+    private final android.graphics.Path gridPath = new android.graphics.Path();
     private final android.graphics.Paint pinPaint = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
     private final android.graphics.Path pinPath = new android.graphics.Path();
     private HistoryListener historyListener;
@@ -594,28 +595,40 @@ public class CanvasView extends View {
     private void drawGrid(Canvas canvas) {
         float scale = (float) Math.hypot(values(matrix, Matrix.MSCALE_X), values(matrix, Matrix.MSKEW_Y));
         float step = gridSize * scale;
-        if (step < 6f * getResources().getDisplayMetrics().density) {
+        if (step < 4f * getResources().getDisplayMetrics().density) {
             return;
         }
         float d = getResources().getDisplayMetrics().density;
-        gridPaint.setColor(0x66808080);
-        gridPaint.setStrokeWidth(Math.max(1f, d * 0.8f));
+        gridPaint.setStyle(android.graphics.Paint.Style.STROKE);
+        gridPaint.setStrokeWidth(Math.max(1f, d));
         matrix.invert(inverse);
         tmp.set(0, 0, getWidth(), getHeight());
         inverse.mapRect(tmp);
         int w = document.getWidth();
         int h = document.getHeight();
+        gridPath.reset();
         float[] p = new float[4];
-        for (int gx = (int) Math.max(0, Math.floor(tmp.left / gridSize)) * gridSize; gx <= w && gx <= tmp.right; gx += gridSize) {
+        int first = (int) Math.max(0, Math.floor(tmp.left / gridSize)) * gridSize;
+        for (int gx = first; gx <= w && gx <= tmp.right; gx += gridSize) {
             p[0] = gx; p[1] = 0; p[2] = gx; p[3] = h;
             matrix.mapPoints(p);
-            canvas.drawLine(p[0], p[1], p[2], p[3], gridPaint);
+            gridPath.moveTo(p[0], p[1]);
+            gridPath.lineTo(p[2], p[3]);
         }
-        for (int gy = (int) Math.max(0, Math.floor(tmp.top / gridSize)) * gridSize; gy <= h && gy <= tmp.bottom; gy += gridSize) {
+        first = (int) Math.max(0, Math.floor(tmp.top / gridSize)) * gridSize;
+        for (int gy = first; gy <= h && gy <= tmp.bottom; gy += gridSize) {
             p[0] = 0; p[1] = gy; p[2] = w; p[3] = gy;
             matrix.mapPoints(p);
-            canvas.drawLine(p[0], p[1], p[2], p[3], gridPaint);
+            gridPath.moveTo(p[0], p[1]);
+            gridPath.lineTo(p[2], p[3]);
         }
+        gridPaint.setColor(0x80000000);
+        canvas.drawPath(gridPath, gridPaint);
+        canvas.save();
+        canvas.translate(d, d);
+        gridPaint.setColor(0x99FFFFFF);
+        canvas.drawPath(gridPath, gridPaint);
+        canvas.restore();
     }
 
     private static float values(Matrix m, int index) {
@@ -630,17 +643,15 @@ public class CanvasView extends View {
         float r = 24f * d;
         float cx = quickX;
         float cy = quickY - 1.9f * r;
+        pinPaint.setStyle(android.graphics.Paint.Style.FILL);
+        pinPaint.setColor(0xFFE6E6E6);
         pinPath.reset();
-        pinPath.addCircle(cx, cy, r, android.graphics.Path.Direction.CW);
         pinPath.moveTo(cx - r * 0.74f, cy + r * 0.68f);
         pinPath.lineTo(cx, quickY);
         pinPath.lineTo(cx + r * 0.74f, cy + r * 0.68f);
         pinPath.close();
-        pinPaint.setStyle(android.graphics.Paint.Style.FILL);
-        pinPaint.setColor(0xFFE6E6E6);
-        pinPaint.setShadowLayer(4f * d, 0, 2f * d, 0x66000000);
         canvas.drawPath(pinPath, pinPaint);
-        pinPaint.clearShadowLayer();
+        canvas.drawCircle(cx, cy, r, pinPaint);
         pinPaint.setColor(0xFF000000 | quickRgb);
         canvas.drawCircle(cx, cy, r * 0.72f, pinPaint);
     }
@@ -994,11 +1005,19 @@ public class CanvasView extends View {
     }
 
     private static float midX(MotionEvent e) {
-        return (e.getX(0) + e.getX(1)) / 2f;
+        float sum = 0;
+        for (int i = 0; i < e.getPointerCount(); i++) {
+            sum += e.getX(i);
+        }
+        return sum / Math.max(1, e.getPointerCount());
     }
 
     private static float midY(MotionEvent e) {
-        return (e.getY(0) + e.getY(1)) / 2f;
+        float sum = 0;
+        for (int i = 0; i < e.getPointerCount(); i++) {
+            sum += e.getY(i);
+        }
+        return sum / Math.max(1, e.getPointerCount());
     }
 
     private static float midXExcluding(MotionEvent e, int skip) {

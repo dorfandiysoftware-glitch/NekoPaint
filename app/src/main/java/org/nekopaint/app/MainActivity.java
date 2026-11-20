@@ -42,6 +42,14 @@ public class MainActivity extends AppCompatActivity {
     private ActivityResultLauncher<String> saveCopy;
 
     @Override
+    protected void onResume() {
+        super.onResume();
+        if (canvas != null) {
+            canvas.applySettings();
+        }
+    }
+
+    @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         projectUri = getIntent().getData();
