@@ -114,4 +114,43 @@ public class LayerOpsTest {
         assertEquals(BlendMode.OVERLAY, back.getLayer(0).getBlendMode());
         assertEquals(BlendMode.ADD, back.getLayer(1).getBlendMode());
     }
+
+    @Test
+    public void clippedLayerShowsOnlyOverTheBase() {
+        Document d = new Document(8, 8);
+        Layer base = d.addLayer("base");
+        base.setPixel(1, 1, 0xFF00FF00);
+        Layer clip = d.addLayer("clip");
+        clip.setClipped(true);
+        clip.setPixel(1, 1, RED);
+        clip.setPixel(3, 3, RED);
+        int[] flat = d.flatten();
+        assertEquals(RED, flat[1 * 8 + 1]);
+        assertEquals(0, flat[3 * 8 + 3]);
+        base.setVisible(false);
+        assertEquals(0, d.flatten()[1 * 8 + 1]);
+    }
+
+    @Test
+    public void alphaLockKeepsTransparentPixelsEmpty() {
+        Document d = new Document(40, 20);
+        Layer l = d.addLayer("a");
+        for (int y = 0; y < 20; y++) {
+            for (int x = 0; x < 20; x++) {
+                l.setPixel(x, y, 0xFF00FF00);
+            }
+        }
+        l.setAlphaLock(true);
+        Editor e = new Editor(d, 10);
+        Editor.Stroke s = e.beginStroke(0, new Brush(0xFF0000, 6f, 1f, 1f, 0.15f, false));
+        s.addPoint(2, 10, 1f);
+        s.addPoint(38, 10, 1f);
+        s.end();
+        assertEquals(0, l.getPixel(30, 10));
+        assertEquals(0, l.getPixel(25, 9));
+        assertEquals(255, l.getPixel(10, 10) >>> 24);
+        assertEquals(RED, l.getPixel(10, 10));
+        assertTrue(e.undo());
+        assertEquals(0xFF00FF00, l.getPixel(10, 10));
+    }
 }

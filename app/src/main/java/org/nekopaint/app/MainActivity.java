@@ -54,9 +54,10 @@ public class MainActivity extends AppCompatActivity {
 
         canvas = findViewById(R.id.canvas);
         canvas.setPerfVisible(Prefs.perfOverlay(this));
-        int backdrop = minimal ? 0xFFC0C0C0 : getColor(R.color.canvas_bg);
+        int custom = Opts.num(this, Opts.BACKDROP);
+        int backdrop = custom != 0 ? custom : minimal ? 0xFFC0C0C0 : getColor(R.color.canvas_bg);
         findViewById(R.id.root).setBackgroundColor(backdrop);
-        if (minimal) {
+        if (minimal || custom != 0) {
             canvas.setBackdropColor(backdrop);
         }
         // The top bar sits on the canvas colour, so the status bar takes the same colour.

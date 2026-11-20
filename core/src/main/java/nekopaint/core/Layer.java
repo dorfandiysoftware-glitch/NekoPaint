@@ -19,6 +19,8 @@ public final class Layer {
     private String name;
     private boolean visible = true;
     private boolean locked;
+    private boolean alphaLock;
+    private boolean clipped;
     private int opacity = 255;
     private BlendMode blendMode = BlendMode.NORMAL;
 
@@ -76,6 +78,24 @@ public final class Layer {
 
     public void setLocked(boolean locked) {
         this.locked = locked;
+    }
+
+    /** While on, painting changes only the colour of pixels that already have some alpha. */
+    public boolean isAlphaLock() {
+        return alphaLock;
+    }
+
+    public void setAlphaLock(boolean on) {
+        alphaLock = on;
+    }
+
+    /** A clipped layer is only visible where the layer below it (its base) has pixels. */
+    public boolean isClipped() {
+        return clipped;
+    }
+
+    public void setClipped(boolean on) {
+        clipped = on;
     }
 
     /** @return opacity from 0 (invisible) to 255 (opaque) */

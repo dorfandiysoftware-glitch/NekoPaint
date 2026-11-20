@@ -122,6 +122,8 @@ public final class Editor {
         copy.setOpacity(src.getOpacity());
         copy.setBlendMode(src.getBlendMode());
         copy.setVisible(src.isVisible());
+        copy.setClipped(src.isClipped());
+        copy.setAlphaLock(src.isAlphaLock());
         return copy;
     }
 
@@ -148,11 +150,18 @@ public final class Editor {
                 if (s == 0) {
                     continue;
                 }
-                if (opacity != 255) {
-                    s = PixelOps.scale(s, opacity);
-                    if (PixelOps.alpha(s) == 0) {
+                if (top.isClipped()) {
+                    int ma = PixelOps.alpha(b[i]);
+                    if (ma == 0) {
                         continue;
                     }
+                    s = PixelOps.scale(s, ma);
+                }
+                if (opacity != 255) {
+                    s = PixelOps.scale(s, opacity);
+                }
+                if (PixelOps.alpha(s) == 0) {
+                    continue;
                 }
                 b[i] = mode.blend(s, b[i]);
             }
@@ -372,8 +381,12 @@ public final class Editor {
                 float x1 = hasLast ? Math.max(lastX, x) : x;
                 float y0 = hasLast ? Math.min(lastY, y) : y;
                 float y1 = hasLast ? Math.max(lastY, y) : y;
-                saveTiles((int) Math.floor(x0 - radius) - 1, (int) Math.floor(y0 - radius) - 1,
-                        (int) Math.ceil(x1 + radius) + 2, (int) Math.ceil(y1 + radius) + 2);
+                lockL = (int) Math.floor(x0 - radius) - 1;
+                lockT = (int) Math.floor(y0 - radius) - 1;
+                lockR = (int) Math.ceil(x1 + radius) + 2;
+                lockB = (int) Math.ceil(y1 + radius) + 2;
+                saveTiles(lockL, lockT, lockR, lockB);
+                lockArea = true;
                 hasLast = true;
                 lastX = x;
                 lastY = y;
@@ -383,6 +396,71 @@ public final class Editor {
                 }
             }
             rasterizer.addPoint(x, y, pressure);
+            if (lockArea && layer.isAlphaLock()) {
+                lockAlpha(lockL, lockT, lockR, lockB);
+            }
+            lockArea = false;
+        }
+
+        private int lockL;
+        private int lockT;
+        private int lockR;
+        private int lockB;
+        private boolean lockArea;
+
+        /**
+         * Alpha lock: puts back the original alpha of every pixel in the area, so only colours
+         * change, and nothing appears where the layer was transparent.
+         */
+        private void lockAlpha(int left, int top, int right, int bottom) {
+            int w = layer.getWidth();
+            int h = layer.getHeight();
+            left = Math.max(0, left);
+            top = Math.max(0, top);
+            right = Math.min(w, right);
+            bottom = Math.min(h, bottom);
+            if (left >= right || top >= bottom) {
+                return;
+            }
+            int[] px = layer.pixels();
+            for (int ty = top / TILE; ty <= (bottom - 1) / TILE; ty++) {
+                for (int tx = left / TILE; tx <= (right - 1) / TILE; tx++) {
+                    int[] saved = savedTiles.get(ty * tilesAcross + tx);
+                    if (saved == null) {
+                        continue;
+                    }
+                    int x0 = tx * TILE;
+                    int y0 = ty * TILE;
+                    int tw = Math.min(w, x0 + TILE) - x0;
+                    int xa = Math.max(left, x0);
+                    int xb = Math.min(right, x0 + tw);
+                    int ya = Math.max(top, y0);
+                    int yb = Math.min(bottom, y0 + TILE);
+                    for (int y = ya; y < yb; y++) {
+                        for (int x = xa; x < xb; x++) {
+                            int i = y * w + x;
+                            int o = saved[(y - y0) * tw + (x - x0)];
+                            int p = px[i];
+                            if (p == o) {
+                                continue;
+                            }
+                            int oa = o >>> 24;
+                            int na = p >>> 24;
+                            if (oa == 0) {
+                                px[i] = 0;
+                            } else if (na == 0) {
+                                px[i] = o;
+                            } else if (na != oa) {
+                                int r = Math.min(255, ((p >> 16) & 0xFF) * 255 / na);
+                                int g = Math.min(255, ((p >> 8) & 0xFF) * 255 / na);
+                                int b = Math.min(255, (p & 0xFF) * 255 / na);
+                                px[i] = PixelOps.pack(oa, PixelOps.div255(r * oa),
+                                        PixelOps.div255(g * oa), PixelOps.div255(b * oa));
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         private void record(float x, float y, float p) {

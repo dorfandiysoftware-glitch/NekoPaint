@@ -93,6 +93,9 @@ public final class OpenRaster {
                     .append(" visibility=\"").append(layer.isVisible() ? "visible" : "hidden")
                     .append("\" opacity=\"")
                     .append(String.format(Locale.ROOT, "%.4f", layer.getOpacity() / 255f))
+                    .append("\" clipping=\"").append(layer.isClipped())
+                    .append("\" alpha-lock=\"").append(layer.isAlphaLock())
+                    .append("\" edit-locked=\"").append(layer.isLocked())
                     .append("\" composite-op=\"").append(compositeOp(layer.getBlendMode()))
                     .append("\" x=\"0\" y=\"0\"/>\n");
         }
@@ -248,6 +251,9 @@ public final class OpenRaster {
             layer.setVisible(!"hidden".equals(e.getAttribute("visibility")));
             layer.setOpacity(opacityAttr(e));
             layer.setBlendMode(blendMode(e.getAttribute("composite-op")));
+            layer.setClipped("true".equals(e.getAttribute("clipping")) && doc.getLayerCount() > 1);
+            layer.setAlphaLock("true".equals(e.getAttribute("alpha-lock")));
+            layer.setLocked("true".equals(e.getAttribute("edit-locked")));
         }
         if (doc.getLayerCount() == 0) {
             doc.addLayer("Layer 1");

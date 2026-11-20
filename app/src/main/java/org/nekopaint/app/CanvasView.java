@@ -105,6 +105,38 @@ public class CanvasView extends View {
     private float lastMidX;
     private float lastMidY;
 
+    // Options from the settings page (see applySettings).
+    private boolean optUndoTap = true;
+    private boolean optRedoTap = true;
+    private boolean optQuickPick = true;
+    private int optQuickMs = 500;
+    private boolean optPressure = true;
+    private float optGamma = 1f;
+    private float optOffX;
+    private float optOffY;
+    private boolean optPalm;
+    private boolean optUndoMsg = true;
+    private int tapPointers;
+    private boolean tapMoved;
+    private long tapDown;
+    private float tapX;
+    private float tapY;
+    private boolean fingerPan;
+    private boolean quickHeld;
+    private PickListener quickPicker;
+    private android.widget.Toast undoToast;
+    private final Runnable quickPickRun = new Runnable() {
+        @Override
+        public void run() {
+            if (job == null && !quickHeld) {
+                return;
+            }
+            cancelStroke();
+            quickHeld = true;
+            pickAtXY(tapX, tapY, quickPicker);
+        }
+    };
+
     private int color = 0x2B2B2B;
     private float radius = 8f;
     private float flow = 1f;
@@ -119,12 +151,39 @@ public class CanvasView extends View {
                     public boolean onScale(ScaleGestureDetector d) {
                         float factor = d.getScaleFactor();
                         userMoved = true;
+                        if (Math.abs(factor - 1f) > 0.012f) {
+                            tapMoved = true;
+                        }
                         matrix.postScale(factor, factor, d.getFocusX(), d.getFocusY());
                         invalidate();
                         return true;
                     }
                 });
         setDocument(newBlankDocument(64, 64));
+        applySettings();
+    }
+
+    /** Reads the options of the settings page; call again when they may have changed. */
+    public void applySettings() {
+        Context c = getContext();
+        optUndoTap = Opts.flag(c, Opts.UNDO_TAP);
+        optRedoTap = Opts.flag(c, Opts.REDO_TAP);
+        optQuickPick = Opts.flag(c, Opts.QUICK_PICK);
+        optQuickMs = Opts.num(c, Opts.QUICK_MS);
+        optPressure = Opts.flag(c, Opts.PRESSURE);
+        optGamma = Opts.pressureGamma(c);
+        float d = c.getResources().getDisplayMetrics().density;
+        optOffX = Opts.num(c, Opts.OFFSET_X) * d;
+        optOffY = Opts.num(c, Opts.OFFSET_Y) * d;
+        optPalm = Opts.num(c, Opts.PALM) == 1;
+        optUndoMsg = Opts.flag(c, Opts.UNDO_MSG);
+        tilePaint.setFilterBitmap(Opts.flag(c, Opts.SMOOTH_ZOOM));
+        invalidate();
+    }
+
+    /** The colour picker used by a long press on the canvas (the "quick eyedropper"). */
+    public void setQuickPicker(PickListener l) {
+        quickPicker = l;
     }
 
     public static Document newBlankDocument(int width, int height) {
@@ -295,6 +354,15 @@ public class CanvasView extends View {
                         markStale(changed);
                         invalidateCanvasRect(changed);
                         notifyHistory();
+                        if (optUndoMsg) {
+                            if (undoToast != null) {
+                                undoToast.cancel();
+                            }
+                            undoToast = android.widget.Toast.makeText(getContext(),
+                                    undo ? R.string.undone : R.string.redone,
+                                    android.widget.Toast.LENGTH_SHORT);
+                            undoToast.show();
+                        }
                     }
                 });
             }
@@ -520,12 +588,16 @@ public class CanvasView extends View {
     }
 
     private void pickAt(MotionEvent e) {
-        if (document == null || picker == null) {
+        pickAtXY(e.getX(0), e.getY(0), picker);
+    }
+
+    private void pickAtXY(float sx, float sy, PickListener target) {
+        if (document == null || target == null) {
             return;
         }
         matrix.invert(inverse);
-        point[0] = e.getX(0);
-        point[1] = e.getY(0);
+        point[0] = sx;
+        point[1] = sy;
         inverse.mapPoints(point);
         int x = (int) Math.floor(point[0]);
         int y = (int) Math.floor(point[1]);
@@ -533,7 +605,7 @@ public class CanvasView extends View {
             return;
         }
         int[] px = document.flattenRect(new Rect(x, y, x + 1, y + 1), PAPER);
-        picker.onPick(px[0] & 0xFFFFFF);
+        target.onPick(px[0] & 0xFFFFFF);
     }
 
     @Override
@@ -545,22 +617,53 @@ public class CanvasView extends View {
         switch (e.getActionMasked()) {
             case MotionEvent.ACTION_DOWN:
                 gesturing = false;
+                quickHeld = false;
+                fingerPan = false;
+                tapPointers = 1;
+                tapMoved = false;
+                tapDown = e.getEventTime();
+                tapX = e.getX(0);
+                tapY = e.getY(0);
                 if (picker != null) {
                     pickAt(e);
                     return true;
                 }
+                if (optPalm && e.getToolType(0) == MotionEvent.TOOL_TYPE_FINGER) {
+                    // Stylus only: a finger just moves the picture.
+                    gesturing = true;
+                    fingerPan = true;
+                    lastMidX = e.getX(0);
+                    lastMidY = e.getY(0);
+                    return true;
+                }
                 beginStroke();
                 addPoints(e);
+                if (optQuickPick && quickPicker != null && job != null) {
+                    postDelayed(quickPickRun, optQuickMs);
+                }
                 return true;
             case MotionEvent.ACTION_POINTER_DOWN:
+                removeCallbacks(quickPickRun);
                 cancelStroke();
                 gesturing = true;
+                fingerPan = false;
+                tapPointers = Math.max(tapPointers, e.getPointerCount());
                 lastMidX = midX(e);
                 lastMidY = midY(e);
                 return true;
             case MotionEvent.ACTION_MOVE:
+                if (quickHeld) {
+                    pickAtXY(e.getX(0), e.getY(0), quickPicker);
+                    return true;
+                }
+                if (Math.abs(e.getX(0) - tapX) > slop() || Math.abs(e.getY(0) - tapY) > slop()) {
+                    removeCallbacks(quickPickRun);
+                    if (gesturing) {
+                        tapMoved = true;
+                    }
+                }
                 if (gesturing) {
-                    if (e.getPointerCount() >= 2) {
+                    if (e.getPointerCount() >= 2 || fingerPan) {
                         float mx = midX(e);
                         float my = midY(e);
                         userMoved = true;
@@ -581,19 +684,40 @@ public class CanvasView extends View {
                 lastMidY = midYExcluding(e, e.getActionIndex());
                 return true;
             case MotionEvent.ACTION_UP:
+                removeCallbacks(quickPickRun);
+                if (quickHeld) {
+                    quickHeld = false;
+                    gesturing = false;
+                    return true;
+                }
                 if (!gesturing && picker == null) {
                     addPoints(e);
                     endStroke();
+                } else if (gesturing && !tapMoved && !fingerPan
+                        && e.getEventTime() - tapDown < 350) {
+                    if (tapPointers == 2 && optUndoTap) {
+                        undo();
+                    } else if (tapPointers == 3 && optRedoTap) {
+                        redo();
+                    }
                 }
                 gesturing = false;
+                fingerPan = false;
                 return true;
             case MotionEvent.ACTION_CANCEL:
+                removeCallbacks(quickPickRun);
+                quickHeld = false;
+                fingerPan = false;
                 cancelStroke();
                 gesturing = false;
                 return true;
             default:
                 return true;
         }
+    }
+
+    private float slop() {
+        return android.view.ViewConfiguration.get(getContext()).getScaledTouchSlop() * 1.5f;
     }
 
     private Runnable lockedListener;
@@ -636,10 +760,13 @@ public class CanvasView extends View {
         int n = e.getHistorySize();
         for (int i = 0; i <= n; i++) {
             boolean last = i == n;
-            point[0] = last ? e.getX(0) : e.getHistoricalX(0, i);
-            point[1] = last ? e.getY(0) : e.getHistoricalY(0, i);
-            float pressure = finger ? 1f
+            point[0] = (last ? e.getX(0) : e.getHistoricalX(0, i)) + optOffX;
+            point[1] = (last ? e.getY(0) : e.getHistoricalY(0, i)) + optOffY;
+            float pressure = finger || !optPressure ? 1f
                     : last ? e.getPressure(0) : e.getHistoricalPressure(0, i);
+            if (pressure < 1f && optGamma != 1f) {
+                pressure = (float) Math.pow(Math.max(0f, pressure), optGamma);
+            }
             inverse.mapPoints(point);
             j.points.add(new float[] {point[0], point[1], pressure});
         }

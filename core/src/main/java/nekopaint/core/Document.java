@@ -103,10 +103,24 @@ public final class Document {
         }
         int background = PixelOps.premultiply(backgroundArgb);
         Arrays.fill(out, 0, w * h, background);
+        Layer base = null; // the nearest layer below that is not clipped
         for (Layer layer : layers) {
+            boolean clipped = layer.isClipped() && base != null;
+            if (!clipped) {
+                base = layer;
+            }
             int opacity = layer.getOpacity();
             if (!layer.isVisible() || opacity == 0) {
                 continue;
+            }
+            int[] mask = null;
+            int maskOpacity = 255;
+            if (clipped) {
+                if (!base.isVisible() || base.getOpacity() == 0) {
+                    continue;
+                }
+                mask = base.pixels();
+                maskOpacity = base.getOpacity();
             }
             int[] source = layer.pixels();
             BlendMode mode = layer.getBlendMode();
@@ -118,11 +132,23 @@ public final class Document {
                     if (s == 0) {
                         continue;
                     }
-                    if (opacity != 255) {
-                        s = PixelOps.scale(s, opacity);
-                        if (PixelOps.alpha(s) == 0) {
+                    if (mask != null) {
+                        int ma = mask[src + x] >>> 24;
+                        if (maskOpacity != 255) {
+                            ma = PixelOps.div255(ma * maskOpacity);
+                        }
+                        if (ma == 0) {
                             continue;
                         }
+                        if (ma != 255) {
+                            s = PixelOps.scale(s, ma);
+                        }
+                    }
+                    if (opacity != 255) {
+                        s = PixelOps.scale(s, opacity);
+                    }
+                    if (PixelOps.alpha(s) == 0) {
+                        continue;
                     }
                     out[dst + x] = (s >>> 24) == 255 && mode == BlendMode.NORMAL
                             ? s : mode.blend(s, out[dst + x]);
@@ -147,7 +173,7 @@ public final class Document {
         for (Layer layer : layers) {
             if (layer.isVisible() && layer.getOpacity() > 0) {
                 visible++;
-                if (layer.getBlendMode() != BlendMode.NORMAL) {
+                if (layer.getBlendMode() != BlendMode.NORMAL || layer.isClipped()) {
                     plain = false;
                 }
             }

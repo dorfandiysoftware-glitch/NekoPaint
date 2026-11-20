@@ -90,6 +90,8 @@ final class EditorUi {
     private float flowPos = 100f;
     private boolean lite;
     private PopupWindow open;
+    private ImageButton clipButton;
+    private TextView alphaButton;
     private LinearLayout layerRows;
     private Slider layerOpacity;
     private TextView layerOpacityText;
@@ -255,6 +257,7 @@ final class EditorUi {
             dismissPanel();
             host.showMenu(moreButton);
         });
+        canvas.setQuickPicker(rgb -> setColor(rgb, false));
         canvas.setLockedListener(() -> Toast.makeText(act, R.string.layer_locked,
                 Toast.LENGTH_SHORT).show());
         syncToolIcons();
@@ -494,7 +497,9 @@ final class EditorUi {
 
     private void showTools() {
         GridLayout grid = new GridLayout(act);
-        grid.setColumnCount(2);
+        final int cols = Math.max(2, Math.min(4, Opts.num(act, Opts.TOOL_COLS)));
+        final boolean labels = Opts.flag(act, Opts.TOOL_LABELS);
+        grid.setColumnCount(cols);
         Object[][] items = {
             {R.drawable.ic_tool_transform, R.string.tool_transform, -1},
             {R.drawable.ic_tool_wand, R.string.tool_wand, -1},
@@ -526,7 +531,10 @@ final class EditorUi {
                     ? accent : fg);
             name.setGravity(Gravity.CENTER);
             name.setSingleLine(true);
-            cell.addView(name);
+            if (labels) {
+                cell.addView(name);
+            }
+            cell.setContentDescription(act.getString((Integer) it[1]));
             if (id < 0) {
                 cell.setAlpha(0.4f);
                 cell.setOnClickListener(v -> Toast.makeText(act, R.string.tool_soon,
@@ -548,7 +556,7 @@ final class EditorUi {
         FrameLayout box = new FrameLayout(act);
         box.addView(scroll, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
                 Math.min(dp(8 * 62), h)));
-        show(box, toolButton, panelWidth(176));
+        show(box, toolButton, panelWidth(88 * cols));
     }
 
     // ------------------------------------------------------------------ brush
@@ -908,7 +916,37 @@ final class EditorUi {
         LinearLayout.LayoutParams bl = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         bl.topMargin = dp(8);
-        box.addView(blendButton, bl);
+        LinearLayout modeRow = new LinearLayout(act);
+        modeRow.setGravity(Gravity.CENTER_VERTICAL);
+        modeRow.addView(blendButton, new LinearLayout.LayoutParams(0,
+                ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        clipButton = iconButton(R.drawable.ic_clip, R.string.layer_clip);
+        clipButton.setOnClickListener(v -> {
+            int at = canvas.getActiveLayer();
+            if (at < 1) {
+                Toast.makeText(act, R.string.layer_clip_bottom, Toast.LENGTH_SHORT).show();
+                return;
+            }
+            Layer l = canvas.getDocument().getLayer(at);
+            l.setClipped(!l.isClipped());
+            canvas.layersChanged();
+            host.onLayersEdited();
+            rebuildLayerRows();
+        });
+        alphaButton = label("\u03B1", 20, fg);
+        alphaButton.setTypeface(Typeface.DEFAULT_BOLD);
+        alphaButton.setGravity(Gravity.CENTER);
+        alphaButton.setContentDescription(act.getString(R.string.layer_alpha_lock));
+        alphaButton.setOnClickListener(v -> {
+            Layer l = canvas.getDocument().getLayer(canvas.getActiveLayer());
+            l.setAlphaLock(!l.isAlphaLock());
+            rebuildLayerRows();
+        });
+        LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(dp(44), dp(44));
+        tp.leftMargin = dp(6);
+        modeRow.addView(clipButton, tp);
+        modeRow.addView(alphaButton, new LinearLayout.LayoutParams(dp(44), dp(44)));
+        box.addView(modeRow, bl);
         box.addView(sliderRowSimple(layerOpacityText, layerOpacity));
         rebuildLayerRows();
         show(box, anchor, panelWidth(340));
@@ -1063,7 +1101,7 @@ final class EditorUi {
         }
         int at = canvas.getActiveLayer() + 1;
         canvas.getEditor().addLayer("Layer " + (doc.getLayerCount() + 1), at);
-        canvas.setActiveLayer(at);
+        canvas.setActiveLayer(Opts.flag(act, Opts.ADD_CURRENT) ? at : Math.max(0, at - 1));
         canvas.layerStructureChanged();
         layersEdited();
     }
@@ -1138,6 +1176,7 @@ final class EditorUi {
             return;
         }
         final Document doc = canvas.getDocument();
+        final int rowThumb = Math.max(40, Math.min(90, Opts.num(act, Opts.ROW_HEIGHT))) - 8;
         updateLayerCount();
         layerRows.removeAllViews();
         for (int i = doc.getLayerCount() - 1; i >= 0; i--) {
@@ -1151,9 +1190,9 @@ final class EditorUi {
             }
             ImageView t = new ImageView(act);
             t.setBackground(round(0xFFDDDDDD, 6));
-            t.setImageBitmap(thumb(layer, dp(44)));
+            t.setImageBitmap(thumb(layer, dp(rowThumb - 4)));
             t.setPadding(dp(2), dp(2), dp(2), dp(2));
-            row.addView(t, new LinearLayout.LayoutParams(dp(48), dp(48)));
+            row.addView(t, new LinearLayout.LayoutParams(dp(rowThumb), dp(rowThumb)));
 
             LinearLayout text = new LinearLayout(act);
             text.setOrientation(LinearLayout.VERTICAL);
@@ -1162,7 +1201,9 @@ final class EditorUi {
             name.setSingleLine(true);
             text.addView(name);
             String mode = blendName(layer.getBlendMode());
-            text.addView(label(Math.round(layer.getOpacity() * 100f / 255f) + "%  " + mode, 12, fgDim));
+            text.addView(label((layer.isClipped() ? "\u21B3 " : "")
+                    + (layer.isAlphaLock() ? "\u03B1 " : "")
+                    + Math.round(layer.getOpacity() * 100f / 255f) + "%  " + mode, 12, fgDim));
             row.addView(text, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
 
             if (layer.isLocked()) {
@@ -1197,6 +1238,8 @@ final class EditorUi {
         layerOpacity.setValue(Math.round(active.getOpacity() * 100f / 255f));
         layerOpacityText.setText(Math.round(active.getOpacity() * 100f / 255f) + "%");
         blendButton.setText(blendName(active.getBlendMode()));
+        clipButton.setBackground(active.isClipped() ? round(rowSelected, 10) : null);
+        alphaButton.setBackground(active.isAlphaLock() ? round(rowSelected, 10) : null);
         syncing = false;
     }
 }
