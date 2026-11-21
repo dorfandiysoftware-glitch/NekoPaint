@@ -274,7 +274,7 @@ public class MainActivity extends AppCompatActivity {
         pickLayerImage.launch("image/*");
     }
 
-    /** Puts a picture from the phone on a new layer, scaled to fit the canvas and centred. */
+    /** Puts a picture from the phone on a new layer and opens the transform tool for it. */
     private void importLayerImage(final android.net.Uri uri) {
         if (uri == null || !canvas.isIdle()) {
             return;
@@ -282,21 +282,22 @@ public class MainActivity extends AppCompatActivity {
         final int cw = canvas.getDocument().getWidth();
         final int ch = canvas.getDocument().getHeight();
         new Thread(() -> {
-            final int[] px = ImageImport.fitToCanvas(this, uri, cw, ch);
+            final Bitmap bmp = ImageImport.decodeFit(this, uri, cw, ch);
             runOnUiThread(() -> {
-                if (px == null) {
+                if (bmp == null) {
                     Toast.makeText(this, R.string.import_failed, Toast.LENGTH_LONG).show();
                     return;
                 }
                 nekopaint.core.Document doc = canvas.getDocument();
-                if (doc.getWidth() != cw || doc.getHeight() != ch || doc.getLayerCount() >= 30) {
+                if (doc.getWidth() != cw || doc.getHeight() != ch || doc.getLayerCount() >= 30
+                        || ui.isTransforming()) {
                     return;
                 }
                 int at = canvas.getActiveLayer() + 1;
-                canvas.getEditor().addLayer("Image", at).setStraightArgb(px);
+                canvas.getEditor().addLayer("Image", at);
                 canvas.setActiveLayer(at);
                 canvas.layerStructureChanged();
-                ui.layersChangedFromOutside();
+                ui.startImageTransform(bmp);
             });
         }, "layer-import").start();
     }

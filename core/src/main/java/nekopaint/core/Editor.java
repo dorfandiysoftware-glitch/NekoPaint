@@ -384,6 +384,25 @@ public final class Editor {
         replacePixels(index, new int[l.getWidth() * l.getHeight()], KIND_CLEAR);
     }
 
+    /**
+     * Finishes a transform: puts the layer back to how it was, then replaces it with the
+     * result as one undoable step.
+     *
+     * @param original the layer's premultiplied pixels before the transform started
+     * @param straight the new picture as non-premultiplied ARGB, row by row
+     */
+    public void commitTransform(int index, int[] original, int[] straight) {
+        requireNoStroke();
+        Layer l = document.getLayer(index);
+        Rect all = new Rect(0, 0, l.getWidth(), l.getHeight());
+        l.pasteRect(all, original);
+        int[] after = new int[straight.length];
+        for (int i = 0; i < after.length; i++) {
+            after[i] = PixelOps.premultiply(straight[i]);
+        }
+        replacePixels(index, after, KIND_TRANSFORM);
+    }
+
     /** Paints the whole layer with one colour (0xRRGGBB, opaque). Can be undone. */
     public void fillLayer(int index, int rgb) {
         Layer l = document.getLayer(index);
@@ -511,6 +530,7 @@ public final class Editor {
     public static final String KIND_ERASE = "erase";
     public static final String KIND_CLEAR = "clear";
     public static final String KIND_FLIP = "flip";
+    public static final String KIND_TRANSFORM = "transform";
 
     private String lastKind = KIND_STROKE;
 

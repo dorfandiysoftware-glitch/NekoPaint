@@ -256,4 +256,21 @@ public class LayerOpsTest {
         assertTrue(e.undo());
         assertEquals(0, d.getLayer(0).getPixel(5, 5));
     }
+
+    @Test
+    public void transformCommitIsOneUndoableStep() {
+        Editor e = editor();
+        Layer l = e.getDocument().getLayer(0);
+        l.setPixel(2, 2, RED);
+        int[] original = l.copyPixels();
+        l.pasteRect(new Rect(0, 0, 70, 70), new int[70 * 70]); // lifted
+        int[] result = new int[70 * 70];
+        result[5 * 70 + 5] = BLUE;
+        e.commitTransform(0, original, result);
+        assertEquals(0, l.getPixel(2, 2));
+        assertEquals(BLUE, l.getPixel(5, 5));
+        assertTrue(e.undo());
+        assertEquals(RED, l.getPixel(2, 2));
+        assertEquals(0, l.getPixel(5, 5));
+    }
 }

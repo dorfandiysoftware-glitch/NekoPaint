@@ -251,4 +251,24 @@
     <string name="layer_solo">Показати лише цей шар</string>
     <string name="layer_show_all">Показати всі шари</string>
     <string name="layer_save_png">Зберегти шар як PNG</string>
+    <string name="transform_scale">Рух / масштаб</string>
+    <string name="transform_perspective">Перспектива</string>
+    <string name="transform_mesh">Сітка</string>
+    <string name="transform_tx">Зсув X</string>
+    <string name="transform_ty">Зсув Y</string>
+    <string name="transform_zoom">Масштаб</string>
+    <string name="transform_angle">Кут</string>
+    <string name="transform_perspective_on">Перспектива</string>
+    <string name="transform_corners_hint">Тягни точки кутів і країв. Тягни деінде, щоб перемістити.</string>
+    <string name="transform_div_x">Розбиття X</string>
+    <string name="transform_div_y">Розбиття Y</string>
+    <string name="transform_smooth">Плавність</string>
+    <string name="transform_interp">Інтерполяція</string>
+    <string name="transform_frame">Показувати рамку навколо об\'єкта</string>
+    <string name="transform_empty">Шар порожній</string>
+    <string name="transform_hint">Тягни пальцем, щоб перемістити. Двома пальцями: масштаб і поворот.</string>
+    <string name="interp_nearest">Найближчий сусід (піксель)</string>
+    <string name="interp_bilinear">Білінійна (звичайна)</string>
+    <string name="ok">OK</string>
+    <string name="cancel">Скасувати</string>
 </resources>

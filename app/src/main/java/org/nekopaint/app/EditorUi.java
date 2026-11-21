@@ -801,6 +801,262 @@ final class EditorUi {
         return row;
     }
 
+    // ------------------------------------------------------------------ transform
+
+    private TransformTool tf;
+    private LinearLayout tfPanel;
+    private LinearLayout tfContent;
+    private int tfLayer = -1;
+    private int[] tfOriginal;
+    private boolean tfNewLayer;
+    private boolean tfSyncing;
+    private final java.util.ArrayList<Runnable> tfSync = new java.util.ArrayList<>();
+
+    boolean isTransforming() {
+        return tf != null;
+    }
+
+    /** The move button of the layers panel: lifts the layer's picture and lets you shape it. */
+    private void startLayerTransform() {
+        if (tf != null || !canvas.isIdle()) {
+            return;
+        }
+        final Document doc = canvas.getDocument();
+        final int idx = canvas.getActiveLayer();
+        final Layer l = doc.getLayer(idx);
+        if (l.isLocked() || l.isSelection()) {
+            Toast.makeText(act, R.string.layer_locked, Toast.LENGTH_SHORT).show();
+            return;
+        }
+        int w = l.getWidth();
+        int h = l.getHeight();
+        int[] px = l.copyPixels();
+        int minX = w;
+        int minY = h;
+        int maxX = -1;
+        int maxY = -1;
+        for (int y = 0; y < h; y++) {
+            for (int x = 0; x < w; x++) {
+                if ((px[y * w + x] >>> 24) != 0) {
+                    minX = Math.min(minX, x);
+                    maxX = Math.max(maxX, x);
+                    minY = Math.min(minY, y);
+                    maxY = Math.max(maxY, y);
+                }
+            }
+        }
+        if (maxX < 0) {
+            Toast.makeText(act, R.string.transform_empty, Toast.LENGTH_SHORT).show();
+            return;
+        }
+        int cw = maxX - minX + 1;
+        int ch = maxY - minY + 1;
+        int[] crop = new int[cw * ch];
+        for (int y = 0; y < ch; y++) {
+            System.arraycopy(px, (minY + y) * w + minX, crop, y * cw, cw);
+        }
+        CanvasView.unpremultiply(crop, crop.length);
+        Bitmap bmp = Bitmap.createBitmap(crop, cw, ch, Bitmap.Config.ARGB_8888);
+        tfOriginal = px;
+        tfNewLayer = false;
+        tfLayer = idx;
+        l.pasteRect(new nekopaint.core.Rect(0, 0, w, h), new int[w * h]);
+        canvas.layersChanged();
+        beginTransform(bmp, minX, minY);
+    }
+
+    /** After importing a picture: it is already on a new empty layer, shape it before keeping it. */
+    void startImageTransform(Bitmap bmp) {
+        if (tf != null) {
+            return;
+        }
+        Document doc = canvas.getDocument();
+        tfLayer = canvas.getActiveLayer();
+        tfOriginal = doc.getLayer(tfLayer).copyPixels();
+        tfNewLayer = true;
+        beginTransform(bmp, (doc.getWidth() - bmp.getWidth()) / 2f, (doc.getHeight() - bmp.getHeight()) / 2f);
+    }
+
+    private void beginTransform(Bitmap bmp, float left, float top) {
+        dismissPanel(false);
+        Document doc = canvas.getDocument();
+        tf = new TransformTool(bmp, left, top, doc.getWidth(), doc.getHeight());
+        tf.setListener(this::transformChanged);
+        canvas.setTransform(tf);
+        buildTransformPanel();
+        Toast.makeText(act, R.string.transform_hint, Toast.LENGTH_SHORT).show();
+    }
+
+    private void transformChanged() {
+        canvas.invalidate();
+        tfSyncing = true;
+        for (Runnable r : tfSync) {
+            r.run();
+        }
+        tfSyncing = false;
+    }
+
+    private void buildTransformPanel() {
+        FrameLayout root = act.findViewById(R.id.root);
+        tfPanel = new LinearLayout(act);
+        tfPanel.setOrientation(LinearLayout.HORIZONTAL);
+        tfPanel.setBackground(round(panelBg, 20));
+        tfPanel.setPadding(dp(8), dp(8), dp(8), dp(8));
+        tfPanel.setElevation(dp(8));
+
+        LinearLayout main = new LinearLayout(act);
+        main.setOrientation(LinearLayout.VERTICAL);
+        LinearLayout tabs = new LinearLayout(act);
+        tabs.setBackground(round(classic ? 0xFF000000 : 0x22808080, 8));
+        final int[] names = {R.string.transform_scale, R.string.transform_perspective, R.string.transform_mesh};
+        final TextView[] tabViews = new TextView[3];
+        for (int i = 0; i < 3; i++) {
+            final int mode = i;
+            TextView t = label(act.getString(names[i]), 14, i == tf.mode ? accent : fg);
+            t.setGravity(Gravity.CENTER);
+            t.setPadding(dp(4), dp(10), dp(4), dp(10));
+            t.setOnClickListener(v -> {
+                tf.setMode(mode);
+                for (int k = 0; k < 3; k++) {
+                    tabViews[k].setTextColor(k == mode ? accent : fg);
+                }
+                fillTransformContent();
+            });
+            tabViews[i] = t;
+            tabs.addView(t, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        }
+        main.addView(tabs);
+        tfContent = new LinearLayout(act);
+        tfContent.setOrientation(LinearLayout.VERTICAL);
+        ScrollView sv = new ScrollView(act);
+        sv.addView(tfContent);
+        main.addView(sv, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+                act.getResources().getDisplayMetrics().heightPixels / 4));
+        tfPanel.addView(main, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+
+        LinearLayout side = new LinearLayout(act);
+        side.setOrientation(LinearLayout.VERTICAL);
+        ImageButton ok = iconButton(R.drawable.ic_check, R.string.ok);
+        ok.setOnClickListener(v -> finishTransform(true));
+        ImageButton no = iconButton(R.drawable.ic_close, R.string.cancel);
+        no.setOnClickListener(v -> finishTransform(false));
+        side.addView(ok, new LinearLayout.LayoutParams(dp(52), dp(52)));
+        View gap = new View(act);
+        side.addView(gap, new LinearLayout.LayoutParams(1, 0, 1f));
+        side.addView(no, new LinearLayout.LayoutParams(dp(52), dp(52)));
+        tfPanel.addView(side, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.MATCH_PARENT));
+
+        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM);
+        lp.setMargins(dp(6), 0, dp(6), dp(6));
+        root.addView(tfPanel, lp);
+        fillTransformContent();
+    }
+
+    private void tfSlider(int title, int from, int to, java.util.function.Supplier<Integer> get,
+            java.util.function.Consumer<Integer> set, java.util.function.Function<Integer, String> fmt) {
+        tfContent.addView(label(act.getString(title), 14, fg));
+        final TextView value = label("", 13, fgDim);
+        final Slider sl = slider(from, to, Math.max(from, Math.min(to, get.get())));
+        sl.addOnChangeListener((s, v, user) -> {
+            if (user && !tfSyncing) {
+                set.accept(Math.round(v));
+            }
+            value.setText(fmt.apply(Math.round(v)));
+        });
+        value.setText(fmt.apply(get.get()));
+        tfSync.add(() -> {
+            int cur = get.get();
+            sl.setValue(Math.max(from, Math.min(to, cur)));
+            value.setText(fmt.apply(cur));
+        });
+        tfContent.addView(sliderRowSimple(value, sl));
+    }
+
+    private void fillTransformContent() {
+        tfContent.removeAllViews();
+        tfSync.clear();
+        if (tf.mode == TransformTool.MODE_SCALE) {
+            int dw = tf.getDocWidth();
+            int dh = tf.getDocHeight();
+            tfSlider(R.string.transform_tx, -dw, dw, () -> Math.round(tf.tx),
+                    v -> tf.setTranslation(v, tf.ty), v -> v + " px");
+            tfSlider(R.string.transform_ty, -dh, dh, () -> Math.round(tf.ty),
+                    v -> tf.setTranslation(tf.tx, v), v -> v + " px");
+            tfSlider(R.string.transform_zoom, 1, 500, () -> Math.round(tf.zoom * 100f),
+                    v -> tf.setZoom(v / 100f), v -> v + "%");
+            tfSlider(R.string.transform_angle, -1800, 1800, () -> Math.round(tf.angle * 10f),
+                    v -> tf.setAngle(v / 10f), v -> (v / 10f) + "\u00B0");
+        } else if (tf.mode == TransformTool.MODE_PERSPECTIVE) {
+            tfContent.addView(switchRow(R.string.transform_perspective_on, tf.perspective,
+                    on -> tf.setPerspective(on)));
+            TextView hint = label(act.getString(R.string.transform_corners_hint), 13, fgDim);
+            hint.setPadding(dp(4), dp(8), 0, dp(8));
+            tfContent.addView(hint);
+        } else {
+            tfSlider(R.string.transform_div_x, 1, 10, () -> tf.divX,
+                    v -> tf.setDivisions(v, tf.divY), v -> String.valueOf(v));
+            tfSlider(R.string.transform_div_y, 1, 10, () -> tf.divY,
+                    v -> tf.setDivisions(tf.divX, v), v -> String.valueOf(v));
+            tfSlider(R.string.transform_smooth, 0, 100, () -> tf.smoothness,
+                    v -> tf.setSmoothness(v), v -> v + "%");
+        }
+        final TextView interp = label(act.getString(tf.smoothFilter ? R.string.interp_bilinear
+                : R.string.interp_nearest), 14, classic ? Color.BLACK : fg);
+        interp.setBackground(round(classic ? 0xFFFFFFFF : 0x22808080, 8));
+        interp.setPadding(dp(14), dp(10), dp(14), dp(10));
+        interp.setOnClickListener(v -> {
+            PopupMenu m = new PopupMenu(act, v);
+            m.getMenu().add(0, 0, 0, R.string.interp_nearest);
+            m.getMenu().add(0, 1, 1, R.string.interp_bilinear);
+            m.setOnMenuItemClickListener(it -> {
+                tf.setInterpolation(it.getItemId() == 1);
+                interp.setText(it.getItemId() == 1 ? R.string.interp_bilinear : R.string.interp_nearest);
+                return true;
+            });
+            m.show();
+        });
+        TextView it = label(act.getString(R.string.transform_interp), 14, fg);
+        it.setPadding(0, dp(10), 0, dp(4));
+        tfContent.addView(it);
+        tfContent.addView(interp);
+        LinearLayout frame = switchRow(R.string.transform_frame, tf.showFrame, on -> tf.setShowFrame(on));
+        frame.setPadding(0, dp(10), 0, 0);
+        tfContent.addView(frame);
+    }
+
+    private void finishTransform(boolean apply) {
+        if (tf == null) {
+            return;
+        }
+        Document doc = canvas.getDocument();
+        if (apply) {
+            int[] result = tf.renderPixels();
+            canvas.getEditor().commitTransform(tfLayer, tfOriginal, result);
+        } else if (tfNewLayer) {
+            canvas.getEditor().undo(); // takes the empty layer away again
+        } else {
+            doc.getLayer(tfLayer).pasteRect(new nekopaint.core.Rect(0, 0, doc.getWidth(),
+                    doc.getHeight()), tfOriginal);
+        }
+        FrameLayout root = act.findViewById(R.id.root);
+        if (root != null && tfPanel != null) {
+            root.removeView(tfPanel);
+        }
+        tfPanel = null;
+        tfContent = null;
+        tf = null;
+        tfOriginal = null;
+        tfSync.clear();
+        canvas.setTransform(null);
+        canvas.setActiveLayer(Math.max(0, Math.min(canvas.getActiveLayer(), doc.getLayerCount() - 1)));
+        canvas.layerStructureChanged();
+        canvas.layerPixelsEdited();
+        host.onLayersEdited();
+        refreshLayers();
+    }
+
     // ------------------------------------------------------------------ tools
 
     private void showTools() {
@@ -1188,6 +1444,8 @@ final class EditorUi {
         left.addView(actionButton(R.drawable.ic_flip_v, R.string.layer_flip_v, v -> flipActive(false)), sideLp());
 
         LinearLayout right = sideBar(bar);
+        right.addView(actionButton(R.drawable.ic_tool_transform, R.string.tool_transform,
+                v -> startLayerTransform()), sideLp());
         right.addView(actionButton(R.drawable.ic_up, R.string.move_up, v -> moveActive(1)), sideLp());
         right.addView(actionButton(R.drawable.ic_down, R.string.move_down, v -> moveActive(-1)), sideLp());
         right.addView(actionButton(R.drawable.ic_merge, R.string.layer_merge, v -> mergeLayer()), sideLp());

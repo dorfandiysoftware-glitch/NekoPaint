@@ -252,4 +252,24 @@
     <string name="layer_solo">Show only this layer</string>
     <string name="layer_show_all">Show all layers</string>
     <string name="layer_save_png">Save layer as PNG</string>
+    <string name="transform_scale">Move / scale</string>
+    <string name="transform_perspective">Perspective</string>
+    <string name="transform_mesh">Mesh</string>
+    <string name="transform_tx">Translation X</string>
+    <string name="transform_ty">Translation Y</string>
+    <string name="transform_zoom">Zoom</string>
+    <string name="transform_angle">Angle</string>
+    <string name="transform_perspective_on">Perspective</string>
+    <string name="transform_corners_hint">Drag the corner and edge points. Drag anywhere else to move.</string>
+    <string name="transform_div_x">Division X</string>
+    <string name="transform_div_y">Division Y</string>
+    <string name="transform_smooth">Smoothness</string>
+    <string name="transform_interp">Interpolation</string>
+    <string name="transform_frame">Show frame around object</string>
+    <string name="transform_empty">The layer is empty</string>
+    <string name="transform_hint">Drag a finger to move. Two fingers zoom and rotate.</string>
+    <string name="interp_nearest">Nearest neighbour (pixel)</string>
+    <string name="interp_bilinear">Bilinear (normal)</string>
+    <string name="ok">OK</string>
+    <string name="cancel">Cancel</string>
 </resources>

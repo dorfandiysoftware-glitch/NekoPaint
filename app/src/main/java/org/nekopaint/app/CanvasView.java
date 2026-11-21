@@ -636,8 +636,17 @@ public class CanvasView extends View {
             }
         }
         canvas.restore();
+        if (transform != null) {
+            canvas.save();
+            canvas.concat(matrix);
+            transform.render(canvas);
+            canvas.restore();
+        }
         if (optGrid) {
             drawGrid(canvas);
+        }
+        if (transform != null) {
+            transform.drawHandles(canvas, matrix, getResources().getDisplayMetrics().density);
         }
         if (quickHeld) {
             drawPin(canvas);
@@ -851,10 +860,27 @@ public class CanvasView extends View {
         target.onPick(px[0] & 0xFFFFFF);
     }
 
+    private TransformTool transform;
+
+    /** While a transform is open, touches shape the picture and it is drawn over the canvas. */
+    public void setTransform(TransformTool t) {
+        transform = t;
+        invalidate();
+    }
+
     @Override
     public boolean onTouchEvent(MotionEvent e) {
         if (!interactive) {
             return false;
+        }
+        if (transform != null) {
+            matrix.invert(inverse);
+            float scale = (float) Math.hypot(values(matrix, Matrix.MSCALE_X),
+                    values(matrix, Matrix.MSKEW_Y));
+            boolean used = transform.onTouch(e, inverse, getResources().getDisplayMetrics().density,
+                    scale);
+            invalidate();
+            return used;
         }
         scaleDetector.onTouchEvent(e);
         switch (e.getActionMasked()) {

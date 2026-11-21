@@ -112,4 +112,47 @@ final class ImageImport {
             return null;
         }
     }
+
+    /** Decodes a picture, shrunk to fit inside w x h if it is bigger; null on failure. */
+    static Bitmap decodeFit(Context c, Uri uri, int w, int h) {
+        try {
+            BitmapFactory.Options bounds = new BitmapFactory.Options();
+            bounds.inJustDecodeBounds = true;
+            try (InputStream in = c.getContentResolver().openInputStream(uri)) {
+                if (in == null) {
+                    return null;
+                }
+                BitmapFactory.decodeStream(in, null, bounds);
+            }
+            if (bounds.outWidth < 1 || bounds.outHeight < 1) {
+                return null;
+            }
+            int sample = 1;
+            while (bounds.outWidth / (sample * 2) >= w && bounds.outHeight / (sample * 2) >= h) {
+                sample *= 2;
+            }
+            BitmapFactory.Options opts = new BitmapFactory.Options();
+            opts.inSampleSize = sample;
+            opts.inPreferredConfig = Bitmap.Config.ARGB_8888;
+            Bitmap src;
+            try (InputStream in = c.getContentResolver().openInputStream(uri)) {
+                src = in == null ? null : BitmapFactory.decodeStream(in, null, opts);
+            }
+            if (src == null) {
+                return null;
+            }
+            float k = Math.min(1f, Math.min(w / (float) src.getWidth(), h / (float) src.getHeight()));
+            if (k < 1f) {
+                Bitmap scaled = Bitmap.createScaledBitmap(src, Math.max(1, Math.round(src.getWidth() * k)),
+                        Math.max(1, Math.round(src.getHeight() * k)), true);
+                if (scaled != src) {
+                    src.recycle();
+                }
+                src = scaled;
+            }
+            return src;
+        } catch (IOException | RuntimeException | OutOfMemoryError e) {
+            return null;
+        }
+    }
 }
