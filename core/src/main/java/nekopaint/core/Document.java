@@ -59,6 +59,16 @@ public final class Document {
         return layers.get(index);
     }
 
+    /** @return the selection layer, or null if there is none */
+    public Layer getSelectionLayer() {
+        for (Layer layer : layers) {
+            if (layer.isSelection()) {
+                return layer;
+            }
+        }
+        return null;
+    }
+
     /** Combines all visible layers on a transparent background. */
     public int[] flatten() {
         return flatten(0);
@@ -105,6 +115,9 @@ public final class Document {
         Arrays.fill(out, 0, w * h, background);
         Layer base = null; // the nearest layer below that is not clipped
         for (Layer layer : layers) {
+            if (layer.isSelection()) {
+                continue;
+            }
             boolean clipped = layer.isClipped() && base != null;
             if (!clipped) {
                 base = layer;
@@ -171,7 +184,7 @@ public final class Document {
         int visible = 0;
         boolean plain = NativeStroke.AVAILABLE && !Boolean.getBoolean("nekopaint.java");
         for (Layer layer : layers) {
-            if (layer.isVisible() && layer.getOpacity() > 0) {
+            if (layer.isVisible() && layer.getOpacity() > 0 && !layer.isSelection()) {
                 visible++;
                 if (layer.getBlendMode() != BlendMode.NORMAL || layer.isClipped()) {
                     plain = false;
@@ -183,7 +196,7 @@ public final class Document {
             int[] op = new int[visible];
             int n = 0;
             for (Layer layer : layers) {
-                if (layer.isVisible() && layer.getOpacity() > 0) {
+                if (layer.isVisible() && layer.getOpacity() > 0 && !layer.isSelection()) {
                     px[n] = layer.pixels();
                     op[n++] = layer.getOpacity();
                 }

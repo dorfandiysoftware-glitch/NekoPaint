@@ -241,4 +241,9 @@
     <string name="n_px">%1$d px</string>
     <string name="n_plain">%1$d</string>
     <string name="paper_hint">Вигляд прозорого фону</string>
+    <string name="selection_layer">Шар виділення</string>
+    <string name="selection_hint">Пензель виділяє, гумка знімає виділення. Інші шари змінюються лише всередині виділення. Сховай шар, щоб вимкнути, видали, щоб прибрати виділення.</string>
+    <string name="selection_all">Виділити все</string>
+    <string name="selection_invert">Інвертувати виділення</string>
+    <string name="selection_no_merge">Шар виділення не можна об\'єднати</string>
 </resources>

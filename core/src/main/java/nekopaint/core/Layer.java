@@ -21,6 +21,7 @@ public final class Layer {
     private boolean locked;
     private boolean alphaLock;
     private boolean clipped;
+    private boolean selection;
     private int opacity = 255;
     private BlendMode blendMode = BlendMode.NORMAL;
 
@@ -81,6 +82,15 @@ public final class Layer {
     }
 
     /** While on, painting changes only the colour of pixels that already have some alpha. */
+    /** The selection layer holds a mask: its alpha says where other layers may be painted. */
+    public boolean isSelection() {
+        return selection;
+    }
+
+    public void setSelection(boolean on) {
+        selection = on;
+    }
+
     public boolean isAlphaLock() {
         return alphaLock;
     }

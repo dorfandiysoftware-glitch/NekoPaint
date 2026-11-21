@@ -97,6 +97,21 @@ public final class Editor {
         }
     }
 
+    /**
+     * Returns the selection layer, creating it on top if needed. While it is visible, strokes
+     * on other layers only change pixels in proportion to its alpha. Clears the undo history
+     * when it creates the layer.
+     */
+    public Layer addSelectionLayer() {
+        Layer existing = document.getSelectionLayer();
+        if (existing != null) {
+            return existing;
+        }
+        Layer layer = addLayer("Selection", document.getLayerCount());
+        layer.setSelection(true);
+        return layer;
+    }
+
     public void setLayerOpacity(int index, int opacity) {
         document.getLayer(index).setOpacity(opacity);
         if (log != null) {
@@ -174,6 +189,24 @@ public final class Editor {
     public void clearLayer(int index) {
         Layer l = document.getLayer(index);
         replacePixels(index, new int[l.getWidth() * l.getHeight()], KIND_CLEAR);
+    }
+
+    /** Selection layer: selects everything. Can be undone. */
+    public void selectAll(int index) {
+        Layer l = document.getLayer(index);
+        int[] px = new int[l.getWidth() * l.getHeight()];
+        java.util.Arrays.fill(px, 0xFF000000);
+        replacePixels(index, px, KIND_STROKE);
+    }
+
+    /** Selection layer: swaps selected and unselected areas. Can be undone. */
+    public void invertSelection(int index) {
+        Layer l = document.getLayer(index);
+        int[] px = l.copyPixels();
+        for (int i = 0; i < px.length; i++) {
+            px[i] = (255 - (px[i] >>> 24)) << 24;
+        }
+        replacePixels(index, px, KIND_STROKE);
     }
 
     /** Mirrors a layer's picture. Can be undone. */
@@ -383,6 +416,10 @@ public final class Editor {
             this.radius = brush.getRadius();
             this.brush = brush;
             this.rasterizer = new StrokeRasterizer(layer, brush);
+            Layer sel = document.getSelectionLayer();
+            if (sel != null && sel != layer && sel.isVisible()) {
+                this.mask = sel.pixels();
+            }
         }
 
         /** Adds an input point; see {@link StrokeRasterizer#addPoint(float, float, float)}. */
@@ -405,16 +442,73 @@ public final class Editor {
                 hasLast = true;
                 lastX = x;
                 lastY = y;
-                if (log != null) {
+                if (log != null && !layer.isSelection()) {
                     record(x, y, Float.isNaN(pressure) ? 0f
                             : Math.max(0f, Math.min(1f, pressure)));
                 }
             }
             rasterizer.addPoint(x, y, pressure);
+            if (lockArea && mask != null) {
+                applyMask(lockL, lockT, lockR, lockB);
+            }
             if (lockArea && layer.isAlphaLock()) {
                 lockAlpha(lockL, lockT, lockR, lockB);
             }
             lockArea = false;
+        }
+
+        private int[] mask;
+
+        /**
+         * Selection: mixes the original pixels back in where the selection is weak, so a stroke
+         * only changes the selected area (partly where the selection is partly transparent).
+         */
+        private void applyMask(int left, int top, int right, int bottom) {
+            int w = layer.getWidth();
+            int h = layer.getHeight();
+            left = Math.max(0, left);
+            top = Math.max(0, top);
+            right = Math.min(w, right);
+            bottom = Math.min(h, bottom);
+            if (left >= right || top >= bottom) {
+                return;
+            }
+            int[] px = layer.pixels();
+            for (int ty = top / TILE; ty <= (bottom - 1) / TILE; ty++) {
+                for (int tx = left / TILE; tx <= (right - 1) / TILE; tx++) {
+                    int[] saved = savedTiles.get(ty * tilesAcross + tx);
+                    if (saved == null) {
+                        continue;
+                    }
+                    int x0 = tx * TILE;
+                    int y0 = ty * TILE;
+                    int tw = Math.min(w, x0 + TILE) - x0;
+                    int xa = Math.max(left, x0);
+                    int xb = Math.min(right, x0 + tw);
+                    int ya = Math.max(top, y0);
+                    int yb = Math.min(bottom, y0 + TILE);
+                    for (int y = ya; y < yb; y++) {
+                        for (int x = xa; x < xb; x++) {
+                            int i = y * w + x;
+                            int o = saved[(y - y0) * tw + (x - x0)];
+                            int p = px[i];
+                            int m = mask[i] >>> 24;
+                            if (p == o || m == 255) {
+                                continue;
+                            }
+                            if (m == 0) {
+                                px[i] = o;
+                                continue;
+                            }
+                            int a = (int) ((o >>> 24) + (((p >>> 24) - (o >>> 24)) * m) / 255);
+                            int r = ((o >> 16) & 0xFF) + ((((p >> 16) & 0xFF) - ((o >> 16) & 0xFF)) * m) / 255;
+                            int g = ((o >> 8) & 0xFF) + ((((p >> 8) & 0xFF) - ((o >> 8) & 0xFF)) * m) / 255;
+                            int b = (o & 0xFF) + (((p & 0xFF) - (o & 0xFF)) * m) / 255;
+                            px[i] = (a << 24) | (r << 16) | (g << 8) | b;
+                        }
+                    }
+                }
+            }
         }
 
         private int lockL;
@@ -511,7 +605,7 @@ public final class Editor {
             if (edit == null) {
                 return; // nothing really changed (for example alpha lock on an empty layer)
             }
-            if (log != null) {
+            if (log != null && !layer.isSelection()) {
                 edit.event = log.addStroke(layerIndex, brush, recorded, recordedCount);
             }
             undoStack.addLast(edit);

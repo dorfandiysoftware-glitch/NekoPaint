@@ -1181,6 +1181,8 @@ final class EditorUi {
                 v -> duplicateLayer()), sideLp());
         left.addView(actionButton(R.drawable.ic_camera, R.string.import_picture,
                 v -> act.pickImageForLayer()), sideLp());
+        left.addView(actionButton(R.drawable.ic_tool_lasso, R.string.selection_layer,
+                v -> openSelectionLayer()), sideLp());
         left.addView(actionButton(R.drawable.ic_flip_h, R.string.layer_flip_h, v -> flipActive(true)), sideLp());
         left.addView(actionButton(R.drawable.ic_flip_v, R.string.layer_flip_v, v -> flipActive(false)), sideLp());
 
@@ -1330,6 +1332,11 @@ final class EditorUi {
         if (at < 1 || !canvas.isIdle()) {
             return;
         }
+        if (canvas.getDocument().getLayer(at).isSelection()
+                || canvas.getDocument().getLayer(at - 1).isSelection()) {
+            Toast.makeText(act, R.string.selection_no_merge, Toast.LENGTH_SHORT).show();
+            return;
+        }
         if (canvas.getDocument().getLayer(at - 1).isLocked()) {
             Toast.makeText(act, R.string.layer_locked, Toast.LENGTH_SHORT).show();
             return;
@@ -1349,6 +1356,10 @@ final class EditorUi {
         m.getMenu().add(0, 3, 2, R.string.layer_clear);
         m.getMenu().add(0, 4, 3, R.string.layer_flip_h);
         m.getMenu().add(0, 5, 4, R.string.layer_flip_v);
+        if (layer.isSelection()) {
+            m.getMenu().add(0, 6, 5, R.string.selection_all);
+            m.getMenu().add(0, 7, 6, R.string.selection_invert);
+        }
         m.setOnMenuItemClickListener(it -> {
             switch (it.getItemId()) {
                 case 1:
@@ -1370,6 +1381,10 @@ final class EditorUi {
             }
             if (it.getItemId() == 3) {
                 canvas.getEditor().clearLayer(index);
+            } else if (it.getItemId() == 6) {
+                canvas.getEditor().selectAll(index);
+            } else if (it.getItemId() == 7) {
+                canvas.getEditor().invertSelection(index);
             } else {
                 canvas.getEditor().flipLayer(index, it.getItemId() == 4);
             }
@@ -1455,10 +1470,17 @@ final class EditorUi {
 
     private void deleteLayer() {
         Document doc = canvas.getDocument();
-        if (doc.getLayerCount() <= 1 || !canvas.isIdle()) {
-            return;
+        int real = 0;
+        for (int i = 0; i < doc.getLayerCount(); i++) {
+            if (!doc.getLayer(i).isSelection()) {
+                real++;
+            }
         }
         int index = canvas.getActiveLayer();
+        if (doc.getLayerCount() <= 1 || !canvas.isIdle()
+                || (real <= 1 && !doc.getLayer(index).isSelection())) {
+            return;
+        }
         canvas.getEditor().removeLayer(index);
         canvas.setActiveLayer(Math.max(0, index - 1));
         canvas.layerStructureChanged();
@@ -1475,6 +1497,28 @@ final class EditorUi {
         canvas.getEditor().moveLayer(from, to);
         canvas.setActiveLayer(to);
         canvas.layerStructureChanged();
+        layersEdited();
+    }
+
+    /** Makes the selection layer (once) and starts editing it: brush selects, eraser deselects. */
+    private void openSelectionLayer() {
+        Document doc = canvas.getDocument();
+        if (!canvas.isIdle()) {
+            return;
+        }
+        if (doc.getSelectionLayer() == null) {
+            if (doc.getLayerCount() >= 30) {
+                return;
+            }
+            canvas.getEditor().addSelectionLayer();
+            canvas.layerStructureChanged();
+            Toast.makeText(act, R.string.selection_hint, Toast.LENGTH_LONG).show();
+        }
+        for (int i = 0; i < doc.getLayerCount(); i++) {
+            if (doc.getLayer(i).isSelection()) {
+                canvas.setActiveLayer(i);
+            }
+        }
         layersEdited();
     }
 
@@ -1548,7 +1592,8 @@ final class EditorUi {
             LinearLayout text = new LinearLayout(act);
             text.setOrientation(LinearLayout.VERTICAL);
             text.setPadding(dp(10), 0, dp(6), 0);
-            TextView name = label(layer.getName(), 14, fg);
+            TextView name = label(layer.isSelection() ? act.getString(R.string.selection_layer)
+                    : layer.getName(), 14, layer.isSelection() ? accent : fg);
             name.setSingleLine(true);
             text.addView(name);
             String mode = blendName(layer.getBlendMode());

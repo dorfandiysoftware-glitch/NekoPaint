@@ -571,6 +571,7 @@ public class CanvasView extends View {
         }
         if (r > l && bt > t) {
             document.flattenRect(new Rect(left + l, top + t, left + r, top + bt), paper, scratch);
+            tintSelection(left + l, top + t, r - l, bt - t);
             if (paper == 0) {
                 unpremultiply(scratch, (r - l) * (bt - t));
             }
@@ -578,6 +579,31 @@ public class CanvasView extends View {
         }
         stale.remove(key);
         return b;
+    }
+
+    /** Shows the selection as a translucent red wash over the rectangle just flattened into scratch. */
+    private void tintSelection(int x, int y, int w, int h) {
+        nekopaint.core.Layer sel = document.getSelectionLayer();
+        if (sel == null || !sel.isVisible()) {
+            return;
+        }
+        int[] sp = sel.pixels();
+        int dw = document.getWidth();
+        for (int j = 0; j < h; j++) {
+            for (int i = 0; i < w; i++) {
+                int a = (sp[(y + j) * dw + x + i] >>> 24) * 100 / 255; // wash strength 0..100
+                if (a == 0) {
+                    continue;
+                }
+                int p = scratch[j * w + i];
+                int pa = p >>> 24;
+                int na = pa + a * (255 - pa) / 255;
+                int r = ((p >> 16) & 0xFF) * (255 - a) / 255 + 255 * a / 255;
+                int g = ((p >> 8) & 0xFF) * (255 - a) / 255 + 40 * a / 255;
+                int b = (p & 0xFF) * (255 - a) / 255 + 70 * a / 255;
+                scratch[j * w + i] = (na << 24) | (r << 16) | (g << 8) | b;
+            }
+        }
     }
 
     @Override

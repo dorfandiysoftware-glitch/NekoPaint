@@ -186,4 +186,31 @@ public class LayerOpsTest {
         assertTrue(e.undo());
         assertEquals(Editor.KIND_CLEAR, e.getLastKind());
     }
+
+    @Test
+    public void selectionLimitsPaintingAndIsNotFlattened() {
+        Document d = new Document(60, 30);
+        Layer l = d.addLayer("a");
+        Editor e = new Editor(d, 10);
+        Layer sel = e.addSelectionLayer();
+        int selIndex = d.getLayerCount() - 1;
+        Editor.Stroke s = e.beginStroke(selIndex, new Brush(0x000000, 5f, 1f, 1f, 0.15f, false));
+        s.addPoint(30, 15, 1f);
+        s.addPoint(58, 15, 1f);
+        s.end();
+        assertTrue(sel.getPixel(50, 15) >>> 24 == 255);
+        assertEquals(0, d.flatten()[15 * 60 + 50]);
+        Editor.Stroke p = e.beginStroke(0, new Brush(0xFF0000, 8f, 1f, 1f, 0.15f, false));
+        p.addPoint(2, 15, 1f);
+        p.addPoint(58, 15, 1f);
+        p.end();
+        assertEquals(0, l.getPixel(10, 15));
+        assertEquals(0xFFFF0000, l.getPixel(50, 15));
+        sel.setVisible(false);
+        Editor.Stroke q = e.beginStroke(0, new Brush(0x00FF00, 8f, 1f, 1f, 0.15f, false));
+        q.addPoint(2, 5, 1f);
+        q.addPoint(20, 5, 1f);
+        q.end();
+        assertEquals(0xFF00FF00, l.getPixel(10, 5));
+    }
 }

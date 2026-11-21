@@ -96,6 +96,7 @@ public final class OpenRaster {
                     .append("\" clipping=\"").append(layer.isClipped())
                     .append("\" alpha-lock=\"").append(layer.isAlphaLock())
                     .append("\" edit-locked=\"").append(layer.isLocked())
+                    .append("\" nekopaint-selection=\"").append(layer.isSelection())
                     .append("\" composite-op=\"").append(compositeOp(layer.getBlendMode()))
                     .append("\" x=\"0\" y=\"0\"/>\n");
         }
@@ -254,6 +255,8 @@ public final class OpenRaster {
             layer.setClipped("true".equals(e.getAttribute("clipping")) && doc.getLayerCount() > 1);
             layer.setAlphaLock("true".equals(e.getAttribute("alpha-lock")));
             layer.setLocked("true".equals(e.getAttribute("edit-locked")));
+            layer.setSelection("true".equals(e.getAttribute("nekopaint-selection"))
+                    && doc.getSelectionLayer() == null);
         }
         if (doc.getLayerCount() == 0) {
             doc.addLayer("Layer 1");
