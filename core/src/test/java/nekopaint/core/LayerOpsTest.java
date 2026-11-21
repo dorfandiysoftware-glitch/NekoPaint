@@ -213,4 +213,47 @@ public class LayerOpsTest {
         q.end();
         assertEquals(0xFF00FF00, l.getPixel(10, 5));
     }
+
+    @Test
+    public void layerOperationsAreUndoable() {
+        Document d = new Document(40, 20);
+        d.addLayer("a");
+        Editor e = new Editor(d, 20);
+        Layer b = e.addLayer("b", 1);
+        b.setPixel(1, 1, RED);
+        assertEquals(2, d.getLayerCount());
+        assertTrue(e.undo());
+        assertEquals(1, d.getLayerCount());
+        assertTrue(e.wasStructural());
+        assertTrue(e.redo());
+        assertEquals(2, d.getLayerCount());
+        assertEquals(RED, d.getLayer(1).getPixel(1, 1));
+
+        e.setLayerOpacity(1, 200);
+        e.setLayerOpacity(1, 100);
+        assertEquals(100, d.getLayer(1).getOpacity());
+        assertTrue(e.undo());
+        assertEquals(255, d.getLayer(1).getOpacity()); // one entry for the whole drag
+
+        e.moveLayer(1, 0);
+        assertEquals(b, d.getLayer(0));
+        assertTrue(e.undo());
+        assertEquals(b, d.getLayer(1));
+
+        e.mergeDown(1);
+        assertEquals(1, d.getLayerCount());
+        assertEquals(RED, d.getLayer(0).getPixel(1, 1));
+        assertTrue(e.undo());
+        assertEquals(2, d.getLayerCount());
+        assertEquals(0, d.getLayer(0).getPixel(1, 1));
+
+        e.removeLayer(1);
+        assertEquals(1, d.getLayerCount());
+        assertTrue(e.undo());
+        assertEquals(b, d.getLayer(1));
+        e.fillLayer(0, 0x00FF00);
+        assertEquals(0xFF00FF00, d.getLayer(0).getPixel(5, 5));
+        assertTrue(e.undo());
+        assertEquals(0, d.getLayer(0).getPixel(5, 5));
+    }
 }

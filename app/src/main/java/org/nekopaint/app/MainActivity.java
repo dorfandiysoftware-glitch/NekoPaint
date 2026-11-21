@@ -85,6 +85,8 @@ public class MainActivity extends AppCompatActivity {
 
         pickLayerImage = registerForActivityResult(
                 new ActivityResultContracts.GetContent(), this::importLayerImage);
+        saveLayerPng = registerForActivityResult(
+                new ActivityResultContracts.CreateDocument("image/png"), this::exportLayerPng);
         savePng = registerForActivityResult(
                 new ActivityResultContracts.CreateDocument("image/png"), this::exportPng);
         saveCopy = registerForActivityResult(
@@ -297,5 +299,34 @@ public class MainActivity extends AppCompatActivity {
                 ui.layersChangedFromOutside();
             });
         }, "layer-import").start();
+    }
+
+    private androidx.activity.result.ActivityResultLauncher<String> saveLayerPng;
+    private int layerToSave = -1;
+
+    void saveLayerAsPng(int index, String name) {
+        layerToSave = index;
+        saveLayerPng.launch(name.replaceAll("[^\\p{L}\\p{N} _-]", "_") + ".png");
+    }
+
+    private void exportLayerPng(Uri uri) {
+        if (uri == null || layerToSave < 0 || layerToSave >= canvas.getDocument().getLayerCount()) {
+            return;
+        }
+        nekopaint.core.Layer l = canvas.getDocument().getLayer(layerToSave);
+        int w = l.getWidth();
+        int h = l.getHeight();
+        int[] px = l.copyPixels();
+        CanvasView.unpremultiply(px, px.length);
+        Bitmap bitmap = Bitmap.createBitmap(px, w, h, Bitmap.Config.ARGB_8888);
+        boolean ok;
+        try (OutputStream out = getContentResolver().openOutputStream(uri)) {
+            ok = out != null && bitmap.compress(Bitmap.CompressFormat.PNG, 100, out);
+        } catch (IOException e) {
+            ok = false;
+        } finally {
+            bitmap.recycle();
+        }
+        Toast.makeText(this, ok ? R.string.saved : R.string.save_failed, Toast.LENGTH_SHORT).show();
     }
 }

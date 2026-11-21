@@ -246,4 +246,9 @@
     <string name="selection_all">Виділити все</string>
     <string name="selection_invert">Інвертувати виділення</string>
     <string name="selection_no_merge">Шар виділення не можна об\'єднати</string>
+    <string name="act_layer">Зміна шару</string>
+    <string name="layer_fill">Залити поточним кольором</string>
+    <string name="layer_solo">Показати лише цей шар</string>
+    <string name="layer_show_all">Показати всі шари</string>
+    <string name="layer_save_png">Зберегти шар як PNG</string>
 </resources>

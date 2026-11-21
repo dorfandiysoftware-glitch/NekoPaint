@@ -247,4 +247,9 @@
     <string name="selection_all">Select all</string>
     <string name="selection_invert">Invert selection</string>
     <string name="selection_no_merge">The selection layer cannot be merged</string>
+    <string name="act_layer">Layer change</string>
+    <string name="layer_fill">Fill with current colour</string>
+    <string name="layer_solo">Show only this layer</string>
+    <string name="layer_show_all">Show all layers</string>
+    <string name="layer_save_png">Save layer as PNG</string>
 </resources>

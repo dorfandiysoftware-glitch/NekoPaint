@@ -42,6 +42,20 @@ public final class Document {
         layers.remove(index);
     }
 
+    /** Puts an existing layer back at a position (used by undo). */
+    public void insertLayer(int at, Layer layer) {
+        layers.add(Math.max(0, Math.min(at, layers.size())), layer);
+    }
+
+    /** Takes a layer out without the "keep one" rule (used by undo). */
+    public Layer detachLayer(int index) {
+        return layers.remove(index);
+    }
+
+    public int indexOf(Layer layer) {
+        return layers.indexOf(layer);
+    }
+
     /** Moves a layer to another position in the stack (0 is the bottom). */
     public void moveLayer(int from, int to) {
         if (to < 0 || to >= layers.size()) {

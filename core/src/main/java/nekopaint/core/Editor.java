@@ -2,6 +2,7 @@
 package nekopaint.core;
 
 import java.util.ArrayDeque;
+import java.util.Arrays;
 
 /**
  * Edits a {@link Document} with undo and redo.
@@ -54,53 +55,244 @@ public final class Editor {
 
     // ------------------------------------------------------------------ layers
 
-    /**
-     * Adds a transparent layer at a position (0 is the bottom). Not undoable: the undo history
-     * is cleared.
-     */
-    public Layer addLayer(String name, int at) {
-        requireNoStroke();
-        Layer layer = document.addLayer(name);
-        int target = Math.max(0, Math.min(at, document.getLayerCount() - 1));
-        document.moveLayer(document.getLayerCount() - 1, target);
-        clearHistory();
-        if (log != null) {
-            log.addOp(ProjectLog.ADD_LAYER, target, 0, name);
-        }
-        return layer;
+    // History entries for structure and layer settings: a pair of actions instead of pixels.
+
+    /** Kind of the history entries made by layer operations. */
+    public static final String KIND_LAYER = "layer";
+
+    private boolean lastStructural;
+
+    /** @return true if the latest undo or redo changed layers, not just pixels */
+    public boolean wasStructural() {
+        return lastStructural;
     }
 
-    /** Removes a layer (the last one cannot be removed). Clears the undo history. */
-    public void removeLayer(int index) {
-        requireNoStroke();
-        document.removeLayer(index);
-        clearHistory();
+    private void pushOp(Runnable undoOp, Runnable redoOp, Object key) {
+        Edit last = undoStack.peekLast();
+        if (key != null && last != null && key.equals(last.key) && redoStack.isEmpty()) {
+            last.redoOp = redoOp;
+            return;
+        }
+        Edit e = new Edit(0, 0, new int[0], new int[0][], new int[0][],
+                new Rect(0, 0, document.getWidth(), document.getHeight()), null, KIND_LAYER);
+        e.undoOp = undoOp;
+        e.redoOp = redoOp;
+        e.key = key;
+        undoStack.addLast(e);
+        redoStack.clear();
+        while (undoStack.size() > maxHistory
+                || (undoStack.size() > 1 && historyBytes() > MAX_HISTORY_BYTES)) {
+            undoStack.pollFirst();
+        }
+    }
+
+    private void logRemove(int index) {
         if (log != null) {
             log.addOp(ProjectLog.REMOVE_LAYER, index, 0, null);
         }
     }
 
-    /** Moves a layer in the stack. Clears the undo history. */
-    public void moveLayer(int from, int to) {
-        requireNoStroke();
-        document.moveLayer(from, to);
-        clearHistory();
+    private void logAdd(int index, String name) {
         if (log != null) {
-            log.addOp(ProjectLog.MOVE_LAYER, from, to, null);
+            log.addOp(ProjectLog.ADD_LAYER, index, 0, name);
         }
     }
 
-    public void setLayerVisible(int index, boolean visible) {
-        document.getLayer(index).setVisible(visible);
+    /** Adds a transparent layer at a position (0 is the bottom). Can be undone. */
+    public Layer addLayer(String name, int at) {
+        requireNoStroke();
+        final Layer layer = document.addLayer(name);
+        final int target = Math.max(0, Math.min(at, document.getLayerCount() - 1));
+        document.moveLayer(document.getLayerCount() - 1, target);
+        logAdd(target, name);
+        final String n = name;
+        pushOp(new Runnable() {
+            public void run() {
+                int i = document.indexOf(layer);
+                document.detachLayer(i);
+                logRemove(i);
+            }
+        }, new Runnable() {
+            public void run() {
+                document.insertLayer(target, layer);
+                logAdd(target, n);
+            }
+        }, null);
+        return layer;
+    }
+
+    /** Deletes a layer. Can be undone. */
+    public void removeLayer(int index) {
+        requireNoStroke();
+        final Layer layer = document.getLayer(index);
+        final int at = index;
+        document.removeLayer(index);
+        logRemove(index);
+        pushOp(new Runnable() {
+            public void run() {
+                document.insertLayer(at, layer);
+                logAdd(at, layer.getName());
+            }
+        }, new Runnable() {
+            public void run() {
+                int i = document.indexOf(layer);
+                document.detachLayer(i);
+                logRemove(i);
+            }
+        }, null);
+    }
+
+    /** Moves a layer in the stack. Can be undone. */
+    public void moveLayer(final int from, final int to) {
+        requireNoStroke();
+        document.moveLayer(from, to);
         if (log != null) {
-            log.addOp(ProjectLog.VISIBLE, index, visible ? 1 : 0, null);
+            log.addOp(ProjectLog.MOVE_LAYER, from, to, null);
         }
+        pushOp(new Runnable() {
+            public void run() {
+                document.moveLayer(to, from);
+                if (log != null) {
+                    log.addOp(ProjectLog.MOVE_LAYER, to, from, null);
+                }
+            }
+        }, new Runnable() {
+            public void run() {
+                document.moveLayer(from, to);
+                if (log != null) {
+                    log.addOp(ProjectLog.MOVE_LAYER, from, to, null);
+                }
+            }
+        }, null);
+    }
+
+    public void setLayerVisible(int index, final boolean visible) {
+        final Layer l = document.getLayer(index);
+        final boolean old = l.isVisible();
+        if (old == visible) {
+            return;
+        }
+        Runnable doIt = new Runnable() {
+            public void run() {
+                setVisibleLogged(l, visible);
+            }
+        };
+        doIt.run();
+        pushOp(new Runnable() {
+            public void run() {
+                setVisibleLogged(l, old);
+            }
+        }, doIt, null);
+    }
+
+    private void setVisibleLogged(Layer l, boolean v) {
+        l.setVisible(v);
+        if (log != null) {
+            log.addOp(ProjectLog.VISIBLE, document.indexOf(l), v ? 1 : 0, null);
+        }
+    }
+
+    public void setLayerOpacity(int index, final int opacity) {
+        final Layer l = document.getLayer(index);
+        final int old = l.getOpacity();
+        if (old == opacity) {
+            return;
+        }
+        Runnable doIt = new Runnable() {
+            public void run() {
+                setOpacityLogged(l, opacity);
+            }
+        };
+        doIt.run();
+        // Dragging the slider makes one history entry, not one per step.
+        pushOp(new Runnable() {
+            public void run() {
+                setOpacityLogged(l, old);
+            }
+        }, doIt, Arrays.asList(l, "opacity"));
+    }
+
+    private void setOpacityLogged(Layer l, int v) {
+        l.setOpacity(v);
+        if (log != null) {
+            log.addOp(ProjectLog.OPACITY, document.indexOf(l), v, null);
+        }
+    }
+
+    public void setLayerBlendMode(int index, final BlendMode mode) {
+        final Layer l = document.getLayer(index);
+        final BlendMode old = l.getBlendMode();
+        if (old == mode) {
+            return;
+        }
+        Runnable doIt = new Runnable() {
+            public void run() {
+                setBlendLogged(l, mode);
+            }
+        };
+        doIt.run();
+        pushOp(new Runnable() {
+            public void run() {
+                setBlendLogged(l, old);
+            }
+        }, doIt, null);
+    }
+
+    private void setBlendLogged(Layer l, BlendMode m) {
+        l.setBlendMode(m);
+        if (log != null) {
+            log.addOp(ProjectLog.BLEND, document.indexOf(l), m.ordinal(), null);
+        }
+    }
+
+    /** Clipping, alpha lock, edit lock and name: settings that are not recorded for the time-lapse. */
+    public void setLayerClipped(int index, final boolean on) {
+        final Layer l = document.getLayer(index);
+        final boolean old = l.isClipped();
+        if (old == on) {
+            return;
+        }
+        l.setClipped(on);
+        pushOp(new Runnable() { public void run() { l.setClipped(old); } },
+                new Runnable() { public void run() { l.setClipped(on); } }, null);
+    }
+
+    public void setLayerAlphaLock(int index, final boolean on) {
+        final Layer l = document.getLayer(index);
+        final boolean old = l.isAlphaLock();
+        if (old == on) {
+            return;
+        }
+        l.setAlphaLock(on);
+        pushOp(new Runnable() { public void run() { l.setAlphaLock(old); } },
+                new Runnable() { public void run() { l.setAlphaLock(on); } }, null);
+    }
+
+    public void setLayerLocked(int index, final boolean on) {
+        final Layer l = document.getLayer(index);
+        final boolean old = l.isLocked();
+        if (old == on) {
+            return;
+        }
+        l.setLocked(on);
+        pushOp(new Runnable() { public void run() { l.setLocked(old); } },
+                new Runnable() { public void run() { l.setLocked(on); } }, null);
+    }
+
+    public void renameLayer(int index, final String name) {
+        final Layer l = document.getLayer(index);
+        final String old = l.getName();
+        if (old.equals(name)) {
+            return;
+        }
+        l.setName(name);
+        pushOp(new Runnable() { public void run() { l.setName(old); } },
+                new Runnable() { public void run() { l.setName(name); } }, null);
     }
 
     /**
      * Returns the selection layer, creating it on top if needed. While it is visible, strokes
-     * on other layers only change pixels in proportion to its alpha. Clears the undo history
-     * when it creates the layer.
+     * on other layers only change pixels in proportion to its alpha.
      */
     public Layer addSelectionLayer() {
         Layer existing = document.getSelectionLayer();
@@ -112,23 +304,7 @@ public final class Editor {
         return layer;
     }
 
-    public void setLayerOpacity(int index, int opacity) {
-        document.getLayer(index).setOpacity(opacity);
-        if (log != null) {
-            log.addOp(ProjectLog.OPACITY, index, opacity, null);
-        }
-    }
-
-    public void setLayerBlendMode(int index, BlendMode mode) {
-        document.getLayer(index).setBlendMode(mode);
-        if (log != null) {
-            log.addOp(ProjectLog.BLEND, index, mode.ordinal(), null);
-        }
-    }
-
-    /**
-     * Copies a layer (pixels, opacity, blend mode) just above itself. Clears the undo history.
-     */
+    /** Copies a layer (pixels, opacity, blend mode) just above itself. Can be undone. */
     public Layer duplicateLayer(int index) {
         requireNoStroke();
         Layer src = document.getLayer(index);
@@ -144,7 +320,7 @@ public final class Editor {
 
     /**
      * Draws a layer onto the one below it (using its opacity and blend mode) and removes it.
-     * Clears the undo history.
+     * Can be undone.
      *
      * @throws IllegalArgumentException if there is no layer below
      */
@@ -153,11 +329,12 @@ public final class Editor {
         if (index < 1 || index >= document.getLayerCount()) {
             throw new IllegalArgumentException("There is no layer below");
         }
-        Layer top = document.getLayer(index);
-        Layer base = document.getLayer(index - 1);
+        final Layer top = document.getLayer(index);
+        final Layer base = document.getLayer(index - 1);
+        final int[] before = base.copyPixels();
+        final int[] b = before.clone();
         if (top.isVisible() && top.getOpacity() > 0) {
             int[] t = top.copyPixels();
-            int[] b = base.copyPixels();
             int opacity = top.getOpacity();
             BlendMode mode = top.getBlendMode();
             for (int i = 0; i < b.length; i++) {
@@ -180,15 +357,39 @@ public final class Editor {
                 }
                 b[i] = mode.blend(s, b[i]);
             }
-            base.pasteRect(new Rect(0, 0, base.getWidth(), base.getHeight()), b);
         }
-        removeLayer(index);
+        final Rect all = new Rect(0, 0, base.getWidth(), base.getHeight());
+        final int at = index;
+        base.pasteRect(all, b);
+        document.removeLayer(index);
+        logRemove(index);
+        pushOp(new Runnable() {
+            public void run() {
+                base.pasteRect(all, before);
+                document.insertLayer(at, top);
+                logAdd(at, top.getName());
+            }
+        }, new Runnable() {
+            public void run() {
+                base.pasteRect(all, b);
+                document.detachLayer(document.indexOf(top));
+                logRemove(at);
+            }
+        }, null);
     }
 
     /** Erases a layer. Can be undone. */
     public void clearLayer(int index) {
         Layer l = document.getLayer(index);
         replacePixels(index, new int[l.getWidth() * l.getHeight()], KIND_CLEAR);
+    }
+
+    /** Paints the whole layer with one colour (0xRRGGBB, opaque). Can be undone. */
+    public void fillLayer(int index, int rgb) {
+        Layer l = document.getLayer(index);
+        int[] px = new int[l.getWidth() * l.getHeight()];
+        java.util.Arrays.fill(px, 0xFF000000 | (rgb & 0xFFFFFF));
+        replacePixels(index, px, KIND_STROKE);
     }
 
     /** Selection layer: selects everything. Can be undone. */
@@ -338,7 +539,12 @@ public final class Editor {
         if (edit == null) {
             return false;
         }
-        edit.apply(document.getLayer(edit.layerIndex), edit.before);
+        lastStructural = edit.undoOp != null;
+        if (edit.undoOp != null) {
+            edit.undoOp.run();
+        } else {
+            edit.apply(document.getLayer(edit.layerIndex), edit.before);
+        }
         lastChanged = edit.bounds;
         lastKind = edit.kind;
         if (log != null && edit.event != null) {
@@ -360,7 +566,12 @@ public final class Editor {
         if (edit == null) {
             return false;
         }
-        edit.apply(document.getLayer(edit.layerIndex), edit.after);
+        lastStructural = edit.redoOp != null;
+        if (edit.redoOp != null) {
+            edit.redoOp.run();
+        } else {
+            edit.apply(document.getLayer(edit.layerIndex), edit.after);
+        }
         lastChanged = edit.bounds;
         lastKind = edit.kind;
         if (log != null && edit.event != null) {
@@ -709,6 +920,9 @@ public final class Editor {
         final Rect bounds;
         ProjectLog.Event event;
         final String kind;
+        Runnable undoOp;
+        Runnable redoOp;
+        Object key;
 
         Edit(int layerIndex, int across, int[] keys, int[][] before, int[][] after, Rect bounds,
                 ProjectLog.Event event, String kind) {

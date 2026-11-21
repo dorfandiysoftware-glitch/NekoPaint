@@ -574,7 +574,8 @@ final class EditorUi {
         }
         int what = Editor_KIND_erase.equals(kind) ? R.string.act_erase
                 : Editor_KIND_clear.equals(kind) ? R.string.act_clear
-                : Editor_KIND_flip.equals(kind) ? R.string.act_flip : R.string.act_stroke;
+                : Editor_KIND_flip.equals(kind) ? R.string.act_flip
+                : nekopaint.core.Editor.KIND_LAYER.equals(kind) ? R.string.act_layer : R.string.act_stroke;
         notice.setText(act.getString(undo ? R.string.undo_fmt : R.string.redo_fmt, act.getString(what)));
         android.graphics.drawable.Drawable icon = act.getDrawable(undo ? R.drawable.ic_undo : R.drawable.ic_redo).mutate();
         icon.setTint(Color.WHITE);
@@ -1257,7 +1258,7 @@ final class EditorUi {
                 return;
             }
             Layer l = canvas.getDocument().getLayer(at);
-            l.setClipped(!l.isClipped());
+            canvas.getEditor().setLayerClipped(at, !l.isClipped());
             canvas.layersChanged();
             host.onLayersEdited();
             rebuildLayerRows();
@@ -1268,7 +1269,8 @@ final class EditorUi {
         alphaButton.setContentDescription(act.getString(R.string.layer_alpha_lock));
         alphaButton.setOnClickListener(v -> {
             Layer l = canvas.getDocument().getLayer(canvas.getActiveLayer());
-            l.setAlphaLock(!l.isAlphaLock());
+            canvas.getEditor().setLayerAlphaLock(canvas.getActiveLayer(), !l.isAlphaLock());
+            canvas.layersChanged();
             rebuildLayerRows();
         });
         LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(dp(44), dp(44));
@@ -1356,6 +1358,10 @@ final class EditorUi {
         m.getMenu().add(0, 3, 2, R.string.layer_clear);
         m.getMenu().add(0, 4, 3, R.string.layer_flip_h);
         m.getMenu().add(0, 5, 4, R.string.layer_flip_v);
+        m.getMenu().add(0, 8, 7, R.string.layer_fill);
+        m.getMenu().add(0, 9, 8, R.string.layer_solo);
+        m.getMenu().add(0, 10, 9, R.string.layer_show_all);
+        m.getMenu().add(0, 11, 10, R.string.layer_save_png);
         if (layer.isSelection()) {
             m.getMenu().add(0, 6, 5, R.string.selection_all);
             m.getMenu().add(0, 7, 6, R.string.selection_invert);
@@ -1365,8 +1371,23 @@ final class EditorUi {
                 case 1:
                     renameLayer(layer);
                     return true;
+                case 9:
+                case 10:
+                    for (int i = 0; i < canvas.getDocument().getLayerCount(); i++) {
+                        Layer o = canvas.getDocument().getLayer(i);
+                        if (!o.isSelection()) {
+                            canvas.getEditor().setLayerVisible(i, it.getItemId() == 10 || i == index);
+                        }
+                    }
+                    canvas.layersChanged();
+                    layersEdited();
+                    return true;
+                case 11:
+                    act.saveLayerAsPng(index, layer.getName());
+                    return true;
                 case 2:
-                    layer.setLocked(!layer.isLocked());
+                    canvas.getEditor().setLayerLocked(index, !layer.isLocked());
+                    canvas.layersChanged();
                     rebuildLayerRows();
                     return true;
                 default:
@@ -1381,6 +1402,8 @@ final class EditorUi {
             }
             if (it.getItemId() == 3) {
                 canvas.getEditor().clearLayer(index);
+            } else if (it.getItemId() == 8) {
+                canvas.getEditor().fillLayer(index, color);
             } else if (it.getItemId() == 6) {
                 canvas.getEditor().selectAll(index);
             } else if (it.getItemId() == 7) {
@@ -1409,7 +1432,9 @@ final class EditorUi {
                 .setPositiveButton(android.R.string.ok, (d, w) -> {
                     String n = input.getText().toString().trim();
                     if (!n.isEmpty()) {
-                        layer.setName(n.length() > 40 ? n.substring(0, 40) : n);
+                        canvas.getEditor().renameLayer(canvas.getDocument().indexOf(layer),
+                                n.length() > 40 ? n.substring(0, 40) : n);
+                        canvas.layersChanged();
                         rebuildLayerRows();
                         host.onLayersEdited();
                     }

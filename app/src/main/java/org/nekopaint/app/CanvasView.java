@@ -384,13 +384,20 @@ public class CanvasView extends View {
                 }
                 final Rect changed = e.getLastChanged();
                 final String kind = e.getLastKind();
+                final boolean structural = e.wasStructural();
                 canUndoNow = e.canUndo();
                 canRedoNow = e.canRedo();
                 post(new Runnable() {
                     @Override
                     public void run() {
-                        markStale(changed);
-                        invalidateCanvasRect(changed);
+                        if (structural) {
+                            activeLayer = Math.max(0, Math.min(activeLayer,
+                                    document.getLayerCount() - 1));
+                            layersChanged();
+                        } else {
+                            markStale(changed);
+                            invalidateCanvasRect(changed);
+                        }
                         notifyHistory();
                         if (optUndoMsg && historyListener != null) {
                             historyListener.onHistory(undo, kind);
@@ -403,6 +410,9 @@ public class CanvasView extends View {
 
     /** Call after changing a layer's visibility, opacity, blend mode or after adding one. */
     public void layersChanged() {
+        canUndoNow = editor.canUndo();
+        canRedoNow = editor.canRedo();
+        notifyHistory();
         stale.clear();
         for (int i = 0; i < tiles.size(); i++) {
             stale.put(tiles.keyAt(i), new int[] {0, 0, TILE, TILE});
@@ -414,9 +424,8 @@ public class CanvasView extends View {
     public void layerStructureChanged() {
         cancelStroke();
         flush();
-        editor.clearHistory();
-        canUndoNow = false;
-        canRedoNow = false;
+        canUndoNow = editor.canUndo();
+        canRedoNow = editor.canRedo();
         activeLayer = Math.max(0, Math.min(activeLayer, document.getLayerCount() - 1));
         layersChanged();
         notifyHistory();
@@ -490,7 +499,7 @@ public class CanvasView extends View {
 
     // ------------------------------------------------------------------ tiles
 
-    private static void unpremultiply(int[] px, int n) {
+    static void unpremultiply(int[] px, int n) {
         for (int i = 0; i < n; i++) {
             int v = px[i];
             int a = v >>> 24;
