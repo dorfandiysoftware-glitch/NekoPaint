@@ -587,11 +587,10 @@ public class CanvasView extends View {
         if (sel == null || !sel.isVisible()) {
             return;
         }
-        int[] sp = sel.pixels();
-        int dw = document.getWidth();
+        int[] sp = sel.copyRect(new Rect(x, y, x + w, y + h));
         for (int j = 0; j < h; j++) {
             for (int i = 0; i < w; i++) {
-                int a = (sp[(y + j) * dw + x + i] >>> 24) * 100 / 255; // wash strength 0..100
+                int a = (sp[j * w + i] >>> 24) * 100 / 255; // wash strength 0..100
                 if (a == 0) {
                     continue;
                 }
