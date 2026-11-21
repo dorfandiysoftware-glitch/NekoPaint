@@ -272,4 +272,9 @@
     <string name="interp_bilinear">Bilinear (normal)</string>
     <string name="ok">OK</string>
     <string name="cancel">Cancel</string>
+    <string name="transform_custom">Custom</string>
+    <string name="transform_custom_hint">Tap the picture to put a point, drag a point to bend the picture there. Drag empty space to move everything.</string>
+    <string name="transform_stiffness">Reach of a point</string>
+    <string name="transform_pin_undo">Remove last point</string>
+    <string name="transform_pin_clear">Remove all points</string>
 </resources>

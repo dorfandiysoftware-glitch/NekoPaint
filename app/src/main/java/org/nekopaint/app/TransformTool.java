@@ -17,6 +17,7 @@ final class TransformTool {
     static final int MODE_SCALE = 0;
     static final int MODE_PERSPECTIVE = 1;
     static final int MODE_MESH = 2;
+    static final int MODE_CUSTOM = 3;
 
     /** Told when the shape changed, so the panel can move its sliders. */
     interface Listener {
@@ -29,6 +30,7 @@ final class TransformTool {
     private static final int DRAG_ROTATE = 3;
     private static final int DRAG_POINT = 4;
     private static final int DRAG_EDGE = 5;
+    private static final int DRAG_PIN = 6;
 
     private final Bitmap src;
     private final int docW;
@@ -58,6 +60,17 @@ final class TransformTool {
     int divY = 3;
     int smoothness = 100;
     float[] mesh;
+
+    // Custom: your own points. Each pin is {sourceX, sourceY, moveX, moveY}; the picture is bent so
+    // every pin's source spot lands where you dragged it, smoothly, with the outline held still.
+    float[] bq = new float[8];
+    final java.util.ArrayList<float[]> pins = new java.util.ArrayList<float[]>();
+    int stiffness = 40; // 10..100, how far a pin's pull reaches
+    private float[] pinWeights;
+    private float[][] pinPoints;
+    private boolean pinsDirty = true;
+    private float downX;
+    private float downY;
 
     private int drag = DRAG_NONE;
     private int dragIndex;
@@ -127,6 +140,9 @@ final class TransformTool {
 
     /** The outline of the picture in whichever tab is active. */
     float[] currentQuad() {
+        if (mode == MODE_CUSTOM) {
+            return bq.clone();
+        }
         if (mode == MODE_PERSPECTIVE) {
             return pc.clone();
         }
@@ -152,6 +168,10 @@ final class TransformTool {
             System.arraycopy(q, 0, pc, 0, 8);
         } else if (newMode == MODE_MESH) {
             resetMesh(q);
+        } else if (newMode == MODE_CUSTOM) {
+            System.arraycopy(q, 0, bq, 0, 8);
+            pins.clear();
+            pinsDirty = true;
         }
         changed();
     }
@@ -213,6 +233,19 @@ final class TransformTool {
                     float[] pt = h != null ? project(h, u, t) : bilinear(pc, u, t);
                     v[2 * (j * (mw + 1) + i)] = pt[0];
                     v[2 * (j * (mw + 1) + i) + 1] = pt[1];
+                }
+            }
+        } else if (mode == MODE_CUSTOM) {
+            mw = 24;
+            mh = 24;
+            v = new float[(mw + 1) * (mh + 1) * 2];
+            solvePins();
+            for (int j = 0; j <= mh; j++) {
+                for (int i = 0; i <= mw; i++) {
+                    float[] b = bilinear(bq, i / (float) mw, j / (float) mh);
+                    float[] d = fieldAt(b[0], b[1]);
+                    v[2 * (j * (mw + 1) + i)] = b[0] + d[0];
+                    v[2 * (j * (mw + 1) + i) + 1] = b[1] + d[1];
                 }
             }
         } else {
@@ -290,6 +323,144 @@ final class TransformTool {
         float t3 = t2 * t;
         return 0.5f * ((2f * p1) + (-p0 + p2) * t + (2f * p0 - 5f * p1 + 4f * p2 - p3) * t2
                 + (-p0 + 3f * p1 - 3f * p2 + p3) * t3);
+    }
+
+    private float sigma() {
+        float minX = Math.min(Math.min(bq[0], bq[2]), Math.min(bq[4], bq[6]));
+        float maxX = Math.max(Math.max(bq[0], bq[2]), Math.max(bq[4], bq[6]));
+        float minY = Math.min(Math.min(bq[1], bq[3]), Math.min(bq[5], bq[7]));
+        float maxY = Math.max(Math.max(bq[1], bq[3]), Math.max(bq[5], bq[7]));
+        float diag = (float) Math.hypot(maxX - minX, maxY - minY);
+        return Math.max(4f, diag * (0.08f + 0.012f * stiffness));
+    }
+
+    private static float kernel(float d2, float sig) {
+        return (float) Math.exp(-d2 / (sig * sig));
+    }
+
+    /** Solves for the weights that make the field hit every pin exactly (anchors stay at zero). */
+    private void solvePins() {
+        if (!pinsDirty && pinWeights != null) {
+            return;
+        }
+        pinsDirty = false;
+        int n = 8 + pins.size();
+        pinPoints = new float[n][2];
+        float[][] move = new float[n][2];
+        for (int i = 0; i < 4; i++) {
+            pinPoints[i][0] = bq[2 * i];
+            pinPoints[i][1] = bq[2 * i + 1];
+            int k = (i + 1) % 4;
+            pinPoints[4 + i][0] = (bq[2 * i] + bq[2 * k]) / 2f;
+            pinPoints[4 + i][1] = (bq[2 * i + 1] + bq[2 * k + 1]) / 2f;
+        }
+        for (int i = 0; i < pins.size(); i++) {
+            float[] pin = pins.get(i);
+            pinPoints[8 + i][0] = pin[0];
+            pinPoints[8 + i][1] = pin[1];
+            move[8 + i][0] = pin[2];
+            move[8 + i][1] = pin[3];
+        }
+        float sig = sigma();
+        double[][] a = new double[n][n + 2];
+        for (int i = 0; i < n; i++) {
+            for (int j = 0; j < n; j++) {
+                float dx = pinPoints[i][0] - pinPoints[j][0];
+                float dy = pinPoints[i][1] - pinPoints[j][1];
+                a[i][j] = kernel(dx * dx + dy * dy, sig) + (i == j ? 1e-3 : 0);
+            }
+            a[i][n] = move[i][0];
+            a[i][n + 1] = move[i][1];
+        }
+        for (int c = 0; c < n; c++) {
+            int piv = c;
+            for (int r = c + 1; r < n; r++) {
+                if (Math.abs(a[r][c]) > Math.abs(a[piv][c])) {
+                    piv = r;
+                }
+            }
+            double[] t = a[c];
+            a[c] = a[piv];
+            a[piv] = t;
+            double d = a[c][c];
+            if (Math.abs(d) < 1e-12) {
+                continue;
+            }
+            for (int r = 0; r < n; r++) {
+                if (r == c) {
+                    continue;
+                }
+                double f = a[r][c] / d;
+                if (f == 0) {
+                    continue;
+                }
+                for (int k = c; k < n + 2; k++) {
+                    a[r][k] -= f * a[c][k];
+                }
+            }
+        }
+        pinWeights = new float[n * 2];
+        for (int i = 0; i < n; i++) {
+            double d = a[i][i];
+            pinWeights[2 * i] = Math.abs(d) < 1e-12 ? 0 : (float) (a[i][n] / d);
+            pinWeights[2 * i + 1] = Math.abs(d) < 1e-12 ? 0 : (float) (a[i][n + 1] / d);
+        }
+    }
+
+    /** How far the picture is pushed at a spot of the undistorted outline. */
+    private float[] fieldAt(float x, float y) {
+        if (pins.isEmpty() || pinWeights == null) {
+            return new float[] {0, 0};
+        }
+        float sig = sigma();
+        float sx = 0;
+        float sy = 0;
+        for (int k = 0; k < pinPoints.length; k++) {
+            float dx = x - pinPoints[k][0];
+            float dy = y - pinPoints[k][1];
+            float w = kernel(dx * dx + dy * dy, sig);
+            sx += pinWeights[2 * k] * w;
+            sy += pinWeights[2 * k + 1] * w;
+        }
+        return new float[] {sx, sy};
+    }
+
+    /** Puts a new point where the picture currently is at (x, y); nothing moves yet. */
+    private void addPin(float x, float y) {
+        if (pins.size() >= 30) {
+            return;
+        }
+        solvePins();
+        float[] d = fieldAt(x, y);
+        float sx = x - d[0];
+        float sy = y - d[1];
+        float[] d2 = fieldAt(sx, sy);
+        sx = x - d2[0];
+        sy = y - d2[1];
+        float[] d3 = fieldAt(sx, sy);
+        pins.add(new float[] {sx, sy, d3[0], d3[1]});
+        pinsDirty = true;
+        changed();
+    }
+
+    void removeLastPin() {
+        if (!pins.isEmpty()) {
+            pins.remove(pins.size() - 1);
+            pinsDirty = true;
+            changed();
+        }
+    }
+
+    void clearPins() {
+        pins.clear();
+        pinsDirty = true;
+        changed();
+    }
+
+    void setStiffness(int s) {
+        stiffness = Math.max(10, Math.min(100, s));
+        pinsDirty = true;
+        changed();
     }
 
     /** Maps the unit square to the quad q (projectively). Returns 8 numbers for {@link #project}. */
@@ -373,6 +544,21 @@ final class TransformTool {
             int n = (i + 1) % 4;
             c.drawLine(p[2 * i], p[2 * i + 1], p[2 * n], p[2 * n + 1], line);
         }
+        if (mode == MODE_CUSTOM) {
+            for (float[] pin : pins) {
+                float[] t = {pin[0] + pin[2], pin[1] + pin[3]};
+                float[] o = {pin[0], pin[1]};
+                toScreen.mapPoints(t);
+                toScreen.mapPoints(o);
+                Paint faint = new Paint(Paint.ANTI_ALIAS_FLAG);
+                faint.setColor(0x881E9BF0);
+                faint.setStrokeWidth(1.5f * density);
+                c.drawLine(o[0], o[1], t[0], t[1], faint);
+                c.drawCircle(t[0], t[1], r, fill);
+                c.drawCircle(t[0], t[1], r, ring);
+            }
+            return;
+        }
         if (mode == MODE_SCALE) {
             float[] rot = rotateHandle();
             toScreen.mapPoints(rot);
@@ -432,6 +618,8 @@ final class TransformTool {
                 float[] pt = map(inverse, e.getX(), e.getY());
                 lastX = pt[0];
                 lastY = pt[1];
+                downX = pt[0];
+                downY = pt[1];
                 twoFingers = false;
                 pickTarget(pt[0], pt[1], reach);
                 return true;
@@ -486,6 +674,13 @@ final class TransformTool {
                 return true;
             case MotionEvent.ACTION_UP:
             case MotionEvent.ACTION_CANCEL:
+                if (e.getActionMasked() == MotionEvent.ACTION_UP && mode == MODE_CUSTOM
+                        && drag == DRAG_MOVE && !twoFingers) {
+                    float[] pt = map(inverse, e.getX(), e.getY());
+                    if (Math.hypot(pt[0] - downX, pt[1] - downY) < reach * 0.5f) {
+                        addPin(pt[0], pt[1]);
+                    }
+                }
                 drag = DRAG_NONE;
                 twoFingers = false;
                 return true;
@@ -502,6 +697,23 @@ final class TransformTool {
 
     private void pickTarget(float x, float y, float reach) {
         drag = DRAG_MOVE;
+        if (mode == MODE_CUSTOM) {
+            int best = -1;
+            double bestD = reach;
+            for (int k = 0; k < pins.size(); k++) {
+                float[] pin = pins.get(k);
+                double d = Math.hypot(x - (pin[0] + pin[2]), y - (pin[1] + pin[3]));
+                if (d < bestD) {
+                    bestD = d;
+                    best = k;
+                }
+            }
+            if (best >= 0) {
+                drag = DRAG_PIN;
+                dragIndex = best;
+            }
+            return;
+        }
         if (mode == MODE_SCALE) {
             float[] rot = rotateHandle();
             if (Math.hypot(x - rot[0], y - rot[1]) < reach * 1.2f) {
@@ -564,6 +776,16 @@ final class TransformTool {
                         pc[2 * i] += dx;
                         pc[2 * i + 1] += dy;
                     }
+                } else if (mode == MODE_CUSTOM) {
+                    for (int i = 0; i < 4; i++) {
+                        bq[2 * i] += dx;
+                        bq[2 * i + 1] += dy;
+                    }
+                    for (float[] pin : pins) {
+                        pin[0] += dx;
+                        pin[1] += dy;
+                    }
+                    pinsDirty = true;
                 } else if (mesh != null) {
                     for (int k = 0; k < mesh.length / 2; k++) {
                         mesh[2 * k] += dx;
@@ -571,6 +793,13 @@ final class TransformTool {
                     }
                 }
                 break;
+            case DRAG_PIN: {
+                float[] pin = pins.get(dragIndex);
+                pin[2] += dx;
+                pin[3] += dy;
+                pinsDirty = true;
+                break;
+            }
             case DRAG_CORNER: {
                 float ccx = cx0 + tx;
                 float ccy = cy0 + ty;

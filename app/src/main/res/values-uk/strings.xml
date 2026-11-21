@@ -271,4 +271,9 @@
     <string name="interp_bilinear">Білінійна (звичайна)</string>
     <string name="ok">OK</string>
     <string name="cancel">Скасувати</string>
+    <string name="transform_custom">Свої точки</string>
+    <string name="transform_custom_hint">Торкнись картинки, щоб поставити точку, тягни точку, щоб вигнути картинку в цьому місці. Тягни порожнє місце, щоб перемістити все.</string>
+    <string name="transform_stiffness">Радіус дії точки</string>
+    <string name="transform_pin_undo">Прибрати останню точку</string>
+    <string name="transform_pin_clear">Прибрати всі точки</string>
 </resources>

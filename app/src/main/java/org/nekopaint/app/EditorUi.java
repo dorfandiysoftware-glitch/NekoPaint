@@ -908,16 +908,17 @@ final class EditorUi {
         main.setOrientation(LinearLayout.VERTICAL);
         LinearLayout tabs = new LinearLayout(act);
         tabs.setBackground(round(classic ? 0xFF000000 : 0x22808080, 8));
-        final int[] names = {R.string.transform_scale, R.string.transform_perspective, R.string.transform_mesh};
-        final TextView[] tabViews = new TextView[3];
-        for (int i = 0; i < 3; i++) {
+        final int[] names = {R.string.transform_scale, R.string.transform_perspective,
+            R.string.transform_mesh, R.string.transform_custom};
+        final TextView[] tabViews = new TextView[4];
+        for (int i = 0; i < 4; i++) {
             final int mode = i;
             TextView t = label(act.getString(names[i]), 14, i == tf.mode ? accent : fg);
             t.setGravity(Gravity.CENTER);
             t.setPadding(dp(4), dp(10), dp(4), dp(10));
             t.setOnClickListener(v -> {
                 tf.setMode(mode);
-                for (int k = 0; k < 3; k++) {
+                for (int k = 0; k < 4; k++) {
                     tabViews[k].setTextColor(k == mode ? accent : fg);
                 }
                 fillTransformContent();
@@ -994,6 +995,22 @@ final class EditorUi {
             TextView hint = label(act.getString(R.string.transform_corners_hint), 13, fgDim);
             hint.setPadding(dp(4), dp(8), 0, dp(8));
             tfContent.addView(hint);
+        } else if (tf.mode == TransformTool.MODE_CUSTOM) {
+            TextView hint = label(act.getString(R.string.transform_custom_hint), 13, fgDim);
+            hint.setPadding(dp(4), dp(8), 0, dp(8));
+            tfContent.addView(hint);
+            tfSlider(R.string.transform_stiffness, 10, 100, () -> tf.stiffness,
+                    v -> tf.setStiffness(v), v -> v + "%");
+            LinearLayout row = new LinearLayout(act);
+            TextView undo = label(act.getString(R.string.transform_pin_undo), 14, accent);
+            undo.setPadding(dp(8), dp(10), dp(8), dp(10));
+            undo.setOnClickListener(v -> tf.removeLastPin());
+            TextView clear = label(act.getString(R.string.transform_pin_clear), 14, accent);
+            clear.setPadding(dp(8), dp(10), dp(8), dp(10));
+            clear.setOnClickListener(v -> tf.clearPins());
+            row.addView(undo);
+            row.addView(clear);
+            tfContent.addView(row);
         } else {
             tfSlider(R.string.transform_div_x, 1, 10, () -> tf.divX,
                     v -> tf.setDivisions(v, tf.divY), v -> String.valueOf(v));
