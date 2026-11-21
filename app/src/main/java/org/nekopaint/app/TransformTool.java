@@ -43,7 +43,16 @@ final class TransformTool {
 
     int mode = MODE_SCALE;
     boolean showFrame = true;
-    boolean smoothFilter = false; // false: nearest neighbour, true: bilinear
+    /** 0 nearest, 1 colour average, 2 bilinear, 3 bicubic, 4 Lanczos 2, 5 Lanczos 3. */
+    int interp = 0;
+
+    // Repeat (tiling), for move/scale and perspective
+    boolean repeat;
+    int repX = 100; // spacing, percent of the picture
+    int repY = 100;
+    int phX; // shift of every other row/column, percent
+    int phY;
+    boolean perspectiveRepeat;
 
     // Move / scale
     float tx;
@@ -211,30 +220,89 @@ final class TransformTool {
 
     /** Draws the shaped picture; the canvas must already have the canvas-to-screen matrix. */
     void render(Canvas c) {
+        renderWith(c, src, interp != 0);
+    }
+
+    private static void drawQuad(Canvas c, Bitmap bmp, float[] q, Paint p) {
+        float[] v = {q[0], q[1], q[2], q[3], q[6], q[7], q[4], q[5]};
+        c.drawBitmapMesh(bmp, 1, 1, v, 0, null, 0, p);
+    }
+
+    private boolean touchesCanvas(float[] q) {
+        float minX = Math.min(Math.min(q[0], q[2]), Math.min(q[4], q[6]));
+        float maxX = Math.max(Math.max(q[0], q[2]), Math.max(q[4], q[6]));
+        float minY = Math.min(Math.min(q[1], q[3]), Math.min(q[5], q[7]));
+        float maxY = Math.max(Math.max(q[1], q[3]), Math.max(q[5], q[7]));
+        return maxX > 0 && minX < docW && maxY > 0 && minY < docH;
+    }
+
+    private void renderWith(Canvas c, Bitmap bmp, boolean filter) {
         Paint p = new Paint();
-        p.setFilterBitmap(smoothFilter);
+        p.setFilterBitmap(filter);
         int mw;
         int mh;
         float[] v;
         if (mode == MODE_SCALE) {
             float[] q = scaleQuad();
-            mw = 1;
-            mh = 1;
-            v = new float[] {q[0], q[1], q[2], q[3], q[6], q[7], q[4], q[5]};
-        } else if (mode == MODE_PERSPECTIVE) {
-            mw = 16;
-            mh = 16;
-            v = new float[(mw + 1) * (mh + 1) * 2];
-            float[] h = perspective ? homography(pc) : null;
-            for (int j = 0; j <= mh; j++) {
-                for (int i = 0; i <= mw; i++) {
-                    float u = i / (float) mw;
-                    float t = j / (float) mh;
-                    float[] pt = h != null ? project(h, u, t) : bilinear(pc, u, t);
-                    v[2 * (j * (mw + 1) + i)] = pt[0];
-                    v[2 * (j * (mw + 1) + i) + 1] = pt[1];
+            if (!repeat) {
+                drawQuad(c, bmp, q, p);
+                return;
+            }
+            float ex = q[2] - q[0];
+            float ey = q[3] - q[1];
+            float fx = q[6] - q[0];
+            float fy = q[7] - q[1];
+            float sx = Math.max(0.05f, repX / 100f);
+            float sy = Math.max(0.05f, repY / 100f);
+            float size = Math.max(4f, Math.min((float) Math.hypot(ex, ey), (float) Math.hypot(fx, fy)));
+            int range = Math.min(25, (int) Math.ceil(Math.hypot(docW, docH) / (size * Math.min(sx, sy))) + 2);
+            for (int l = -range; l <= range; l++) {
+                for (int k = -range; k <= range; k++) {
+                    float u = k * sx + l * phX / 100f;
+                    float w = l * sy + k * phY / 100f;
+                    float ox = q[0] + ex * u + fx * w;
+                    float oy = q[1] + ey * u + fy * w;
+                    float[] t = {ox, oy, ox + ex, oy + ey, ox + ex + fx, oy + ey + fy, ox + fx, oy + fy};
+                    if (touchesCanvas(t)) {
+                        drawQuad(c, bmp, t, p);
+                    }
                 }
             }
+            return;
+        } else if (mode == MODE_PERSPECTIVE) {
+            float[] h = perspective ? homography(pc) : null;
+            int range = perspectiveRepeat && h != null ? 6 : 0;
+            mw = 8;
+            mh = 8;
+            for (int l = -range; l <= range; l++) {
+                for (int k = -range; k <= range; k++) {
+                    v = new float[(mw + 1) * (mh + 1) * 2];
+                    boolean ok = true;
+                    for (int j = 0; j <= mh && ok; j++) {
+                        for (int i = 0; i <= mw; i++) {
+                            float u = k + i / (float) mw;
+                            float t = l + j / (float) mh;
+                            float[] pt;
+                            if (h == null) {
+                                pt = bilinear(pc, u, t);
+                            } else {
+                                float den = h[6] * u + h[7] * t + 1f;
+                                if (den < 0.05f) {
+                                    ok = false;
+                                    break;
+                                }
+                                pt = project(h, u, t);
+                            }
+                            v[2 * (j * (mw + 1) + i)] = pt[0];
+                            v[2 * (j * (mw + 1) + i) + 1] = pt[1];
+                        }
+                    }
+                    if (ok) {
+                        c.drawBitmapMesh(bmp, mw, mh, v, 0, null, 0, p);
+                    }
+                }
+            }
+            return;
         } else if (mode == MODE_CUSTOM) {
             mw = 24;
             mh = 24;
@@ -261,18 +329,54 @@ final class TransformTool {
                 }
             }
         }
-        c.drawBitmapMesh(src, mw, mh, v, 0, null, 0, p);
+        c.drawBitmapMesh(bmp, mw, mh, v, 0, null, 0, p);
     }
 
     /** @return the shaped picture on a transparent canvas-sized bitmap, as non-premultiplied ARGB */
     int[] renderPixels() {
         Bitmap out = Bitmap.createBitmap(docW, docH, Bitmap.Config.ARGB_8888);
         Canvas c = new Canvas(out);
-        render(c);
+        Bitmap use = src;
+        if (interp >= 3 || interp == 1) {
+            use = resampledSource();
+        }
+        renderWith(c, use, interp != 0);
+        if (use != src) {
+            use.recycle();
+        }
         int[] px = new int[docW * docH];
         out.getPixels(px, 0, docW, 0, 0, docW, docH);
         out.recycle();
         return px;
+    }
+
+    /** The source scaled to about its final size with the chosen filter (or the source itself). */
+    private Bitmap resampledSource() {
+        float[] q = currentQuad();
+        float sx = (float) Math.hypot(q[2] - q[0], q[3] - q[1]) / sw;
+        float sy = (float) Math.hypot(q[6] - q[0], q[7] - q[1]) / sh;
+        if (repeat && mode == MODE_SCALE) {
+            return src;
+        }
+        int nw = Math.max(1, Math.round(sw * sx));
+        int nh = Math.max(1, Math.round(sh * sy));
+        if ((Math.abs(sx - 1f) < 0.02f && Math.abs(sy - 1f) < 0.02f) || (long) nw * nh > 20000000L
+                || (long) sw * sh > 20000000L) {
+            return src;
+        }
+        int kernel;
+        switch (interp) {
+            case 1: kernel = nekopaint.core.Resampler.BOX; break;
+            case 3: kernel = nekopaint.core.Resampler.CATMULL_ROM; break;
+            case 4: kernel = nekopaint.core.Resampler.LANCZOS2; break;
+            default: kernel = nekopaint.core.Resampler.LANCZOS3; break;
+        }
+        int w = src.getWidth();
+        int h = src.getHeight();
+        int[] px = new int[w * h];
+        src.getPixels(px, 0, w, 0, 0, w, h);
+        int[] res = nekopaint.core.Resampler.resize(px, w, h, nw, nh, kernel);
+        return Bitmap.createBitmap(res, nw, nh, Bitmap.Config.ARGB_8888);
     }
 
     /** Position on the mesh at grid coordinates (gx, gy), blending linear and spline shapes. */
@@ -878,8 +982,30 @@ final class TransformTool {
         changed();
     }
 
-    void setInterpolation(boolean smooth) {
-        smoothFilter = smooth;
+    void setInterpolation(int kind) {
+        interp = kind;
+        changed();
+    }
+
+    void setRepeat(boolean on) {
+        repeat = on;
+        changed();
+    }
+
+    void setRepeatSpacing(int x, int y) {
+        repX = x;
+        repY = y;
+        changed();
+    }
+
+    void setPhase(int x, int y) {
+        phX = x;
+        phY = y;
+        changed();
+    }
+
+    void setPerspectiveRepeat(boolean on) {
+        perspectiveRepeat = on;
         changed();
     }
 

@@ -989,9 +989,25 @@ final class EditorUi {
                     v -> tf.setZoom(v / 100f), v -> v + "%");
             tfSlider(R.string.transform_angle, -1800, 1800, () -> Math.round(tf.angle * 10f),
                     v -> tf.setAngle(v / 10f), v -> (v / 10f) + "\u00B0");
+            tfContent.addView(switchRow(R.string.transform_repeat, tf.repeat, on -> {
+                tf.setRepeat(on);
+                fillTransformContent();
+            }));
+            if (tf.repeat) {
+                tfSlider(R.string.transform_repeat_x, 5, 400, () -> tf.repX,
+                        v -> tf.setRepeatSpacing(v, tf.repY), v -> (v / 100f) + "");
+                tfSlider(R.string.transform_repeat_y, 5, 400, () -> tf.repY,
+                        v -> tf.setRepeatSpacing(tf.repX, v), v -> (v / 100f) + "");
+                tfSlider(R.string.transform_phase_x, 0, 100, () -> tf.phX,
+                        v -> tf.setPhase(v, tf.phY), v -> v + "%");
+                tfSlider(R.string.transform_phase_y, 0, 100, () -> tf.phY,
+                        v -> tf.setPhase(tf.phX, v), v -> v + "%");
+            }
         } else if (tf.mode == TransformTool.MODE_PERSPECTIVE) {
             tfContent.addView(switchRow(R.string.transform_perspective_on, tf.perspective,
                     on -> tf.setPerspective(on)));
+            tfContent.addView(switchRow(R.string.transform_repeat, tf.perspectiveRepeat,
+                    on -> tf.setPerspectiveRepeat(on)));
             TextView hint = label(act.getString(R.string.transform_corners_hint), 13, fgDim);
             hint.setPadding(dp(4), dp(8), 0, dp(8));
             tfContent.addView(hint);
@@ -1019,17 +1035,21 @@ final class EditorUi {
             tfSlider(R.string.transform_smooth, 0, 100, () -> tf.smoothness,
                     v -> tf.setSmoothness(v), v -> v + "%");
         }
-        final TextView interp = label(act.getString(tf.smoothFilter ? R.string.interp_bilinear
-                : R.string.interp_nearest), 14, classic ? Color.BLACK : fg);
+        final int[] interpNames = {R.string.interp_nearest, R.string.interp_average,
+            R.string.interp_bilinear, R.string.interp_bicubic, R.string.interp_lanczos2,
+            R.string.interp_lanczos3};
+        final TextView interp = label(act.getString(interpNames[tf.interp]), 14,
+                classic ? Color.BLACK : fg);
         interp.setBackground(round(classic ? 0xFFFFFFFF : 0x22808080, 8));
         interp.setPadding(dp(14), dp(10), dp(14), dp(10));
         interp.setOnClickListener(v -> {
             PopupMenu m = new PopupMenu(act, v);
-            m.getMenu().add(0, 0, 0, R.string.interp_nearest);
-            m.getMenu().add(0, 1, 1, R.string.interp_bilinear);
+            for (int i = 0; i < interpNames.length; i++) {
+                m.getMenu().add(0, i, i, interpNames[i]);
+            }
             m.setOnMenuItemClickListener(it -> {
-                tf.setInterpolation(it.getItemId() == 1);
-                interp.setText(it.getItemId() == 1 ? R.string.interp_bilinear : R.string.interp_nearest);
+                tf.setInterpolation(it.getItemId());
+                interp.setText(interpNames[it.getItemId()]);
                 return true;
             });
             m.show();

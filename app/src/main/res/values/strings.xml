@@ -277,4 +277,13 @@
     <string name="transform_stiffness">Reach of a point</string>
     <string name="transform_pin_undo">Remove last point</string>
     <string name="transform_pin_clear">Remove all points</string>
+    <string name="interp_average">Colour average (pixel)</string>
+    <string name="interp_bicubic">Bicubic (sharp)</string>
+    <string name="interp_lanczos2">Lanczos 2 (sharp)</string>
+    <string name="interp_lanczos3">Lanczos 3 (sharp)</string>
+    <string name="transform_repeat">Repeat</string>
+    <string name="transform_repeat_x">Repeat X (spacing)</string>
+    <string name="transform_repeat_y">Repeat Y (spacing)</string>
+    <string name="transform_phase_x">Phase X</string>
+    <string name="transform_phase_y">Phase Y</string>
 </resources>

@@ -276,4 +276,13 @@
     <string name="transform_stiffness">Радіус дії точки</string>
     <string name="transform_pin_undo">Прибрати останню точку</string>
     <string name="transform_pin_clear">Прибрати всі точки</string>
+    <string name="interp_average">Усереднення кольору (піксель)</string>
+    <string name="interp_bicubic">Бікубічна (різка)</string>
+    <string name="interp_lanczos2">Ланцош 2 (різка)</string>
+    <string name="interp_lanczos3">Ланцош 3 (різка)</string>
+    <string name="transform_repeat">Повтор</string>
+    <string name="transform_repeat_x">Повтор X (крок)</string>
+    <string name="transform_repeat_y">Повтор Y (крок)</string>
+    <string name="transform_phase_x">Фаза X</string>
+    <string name="transform_phase_y">Фаза Y</string>
 </resources>
