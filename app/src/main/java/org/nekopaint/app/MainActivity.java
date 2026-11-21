@@ -83,6 +83,8 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
+        pickLayerImage = registerForActivityResult(
+                new ActivityResultContracts.GetContent(), this::importLayerImage);
         savePng = registerForActivityResult(
                 new ActivityResultContracts.CreateDocument("image/png"), this::exportPng);
         saveCopy = registerForActivityResult(
@@ -262,5 +264,38 @@ public class MainActivity extends AppCompatActivity {
         }
         Toast.makeText(this, ok ? R.string.saved : R.string.save_failed,
                 Toast.LENGTH_SHORT).show();
+    }
+
+    private androidx.activity.result.ActivityResultLauncher<String> pickLayerImage;
+
+    void pickImageForLayer() {
+        pickLayerImage.launch("image/*");
+    }
+
+    /** Puts a picture from the phone on a new layer, scaled to fit the canvas and centred. */
+    private void importLayerImage(final android.net.Uri uri) {
+        if (uri == null || !canvas.isIdle()) {
+            return;
+        }
+        final int cw = canvas.getDocument().getWidth();
+        final int ch = canvas.getDocument().getHeight();
+        new Thread(() -> {
+            final int[] px = ImageImport.fitToCanvas(this, uri, cw, ch);
+            runOnUiThread(() -> {
+                if (px == null) {
+                    Toast.makeText(this, R.string.import_failed, Toast.LENGTH_LONG).show();
+                    return;
+                }
+                nekopaint.core.Document doc = canvas.getDocument();
+                if (doc.getWidth() != cw || doc.getHeight() != ch || doc.getLayerCount() >= 30) {
+                    return;
+                }
+                int at = canvas.getActiveLayer() + 1;
+                canvas.getEditor().addLayer("Image", at).setStraightArgb(px);
+                canvas.setActiveLayer(at);
+                canvas.layerStructureChanged();
+                ui.layersChangedFromOutside();
+            });
+        }, "layer-import").start();
     }
 }

@@ -66,4 +66,50 @@ final class ImageImport {
             return null;
         }
     }
+
+    /** Decodes a picture and fits it inside w x h, centred, as straight ARGB pixels; null on failure. */
+    static int[] fitToCanvas(Context c, Uri uri, int w, int h) {
+        try {
+            BitmapFactory.Options bounds = new BitmapFactory.Options();
+            bounds.inJustDecodeBounds = true;
+            try (InputStream in = c.getContentResolver().openInputStream(uri)) {
+                if (in == null) {
+                    return null;
+                }
+                BitmapFactory.decodeStream(in, null, bounds);
+            }
+            if (bounds.outWidth < 1 || bounds.outHeight < 1) {
+                return null;
+            }
+            int sample = 1;
+            while (bounds.outWidth / (sample * 2) >= w && bounds.outHeight / (sample * 2) >= h) {
+                sample *= 2;
+            }
+            BitmapFactory.Options opts = new BitmapFactory.Options();
+            opts.inSampleSize = sample;
+            opts.inPreferredConfig = Bitmap.Config.ARGB_8888;
+            Bitmap src;
+            try (InputStream in = c.getContentResolver().openInputStream(uri)) {
+                src = in == null ? null : BitmapFactory.decodeStream(in, null, opts);
+            }
+            if (src == null) {
+                return null;
+            }
+            float k = Math.min(w / (float) src.getWidth(), h / (float) src.getHeight());
+            float dw = src.getWidth() * k;
+            float dh = src.getHeight() * k;
+            Bitmap out = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
+            android.graphics.Canvas cv = new android.graphics.Canvas(out);
+            android.graphics.Paint p = new android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG);
+            cv.drawBitmap(src, null, new android.graphics.RectF((w - dw) / 2f, (h - dh) / 2f,
+                    (w + dw) / 2f, (h + dh) / 2f), p);
+            src.recycle();
+            int[] px = new int[w * h];
+            out.getPixels(px, 0, w, 0, 0, w, h);
+            out.recycle();
+            return px;
+        } catch (IOException | RuntimeException | OutOfMemoryError e) {
+            return null;
+        }
+    }
 }

@@ -1179,6 +1179,8 @@ final class EditorUi {
         left.addView(actionButton(R.drawable.ic_add, R.string.add_layer, v -> addLayer()), sideLp());
         left.addView(actionButton(R.drawable.ic_duplicate, R.string.layer_duplicate,
                 v -> duplicateLayer()), sideLp());
+        left.addView(actionButton(R.drawable.ic_camera, R.string.import_picture,
+                v -> act.pickImageForLayer()), sideLp());
         left.addView(actionButton(R.drawable.ic_flip_h, R.string.layer_flip_h, v -> flipActive(true)), sideLp());
         left.addView(actionButton(R.drawable.ic_flip_v, R.string.layer_flip_v, v -> flipActive(false)), sideLp());
 
@@ -1476,6 +1478,10 @@ final class EditorUi {
         layersEdited();
     }
 
+    void layersChangedFromOutside() {
+        layersEdited();
+    }
+
     private void layersEdited() {
         host.onLayersEdited();
         rebuildLayerRows();
@@ -1557,6 +1563,43 @@ final class EditorUi {
                 lock.setImageTintList(ColorStateList.valueOf(fgDim));
                 row.addView(lock, new LinearLayout.LayoutParams(dp(20), dp(20)));
             }
+            final TextView handle = label("\u2261", 22, fgDim);
+            handle.setGravity(Gravity.CENTER);
+            handle.setOnTouchListener(new View.OnTouchListener() {
+                float downY;
+                @Override
+                public boolean onTouch(View hv, MotionEvent e) {
+                    View r = (View) hv.getParent();
+                    switch (e.getActionMasked()) {
+                        case MotionEvent.ACTION_DOWN:
+                            downY = e.getRawY();
+                            r.setElevation(dp(6));
+                            layerRows.requestDisallowInterceptTouchEvent(true);
+                            hv.getParent().requestDisallowInterceptTouchEvent(true);
+                            return true;
+                        case MotionEvent.ACTION_MOVE:
+                            r.setTranslationY(e.getRawY() - downY);
+                            return true;
+                        case MotionEvent.ACTION_UP:
+                        case MotionEvent.ACTION_CANCEL:
+                            float rh = Math.max(1, r.getHeight());
+                            int steps = Math.round((e.getRawY() - downY) / rh);
+                            r.setTranslationY(0);
+                            r.setElevation(0);
+                            int to = Math.max(0, Math.min(doc.getLayerCount() - 1, index - steps));
+                            if (e.getActionMasked() == MotionEvent.ACTION_UP && to != index
+                                    && canvas.isIdle()) {
+                                canvas.getEditor().moveLayer(index, to);
+                                canvas.setActiveLayer(to);
+                                canvas.layerStructureChanged();
+                                layersEdited();
+                            }
+                            return true;
+                        default:
+                            return true;
+                    }
+                }
+            });
             ImageButton eye = iconButton(layer.isVisible() ? R.drawable.ic_eye : R.drawable.ic_eye_off,
                     R.string.visibility);
             eye.setOnClickListener(v -> {
@@ -1566,6 +1609,7 @@ final class EditorUi {
                 rebuildLayerRows();
             });
             row.addView(eye, new LinearLayout.LayoutParams(dp(44), dp(44)));
+            row.addView(handle, new LinearLayout.LayoutParams(dp(34), dp(44)));
             row.setOnClickListener(v -> {
                 canvas.setActiveLayer(index);
                 rebuildLayerRows();
