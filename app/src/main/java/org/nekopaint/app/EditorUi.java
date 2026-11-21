@@ -3,6 +3,7 @@ package org.nekopaint.app;
 
 import android.content.res.ColorStateList;
 import android.graphics.Bitmap;
+import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
@@ -602,25 +603,10 @@ final class EditorUi {
             Opts.setFlag(act, Opts.GRID, on);
             canvas.applySettings();
         }));
-        TextView sizeText = label("", 13, fgDim);
-        sizeText.setPadding(dp(4), dp(4), 0, 0);
-        Slider size = new Slider(act);
-        size.setValueFrom(8);
-        size.setValueTo(128);
-        size.setStepSize(8);
-        int cur = Math.max(8, Math.min(128, Opts.num(act, Opts.GRID_SIZE)));
-        cur = 8 + Math.round((cur - 8) / 8f) * 8;
-        size.setValue(cur);
-        sizeText.setText(act.getString(R.string.tg_grid_size, cur));
-        size.addOnChangeListener((sl, v, fromUser) -> {
-            sizeText.setText(act.getString(R.string.tg_grid_size, (int) v));
-            if (fromUser) {
-                Opts.setNum(act, Opts.GRID_SIZE, (int) v);
-                canvas.applySettings();
-            }
-        });
-        box.addView(sizeText);
-        box.addView(size);
+        TextView gs = label(act.getString(R.string.grid_settings) + "  \u203A", 15, accent);
+        gs.setPadding(dp(4), dp(10), dp(4), dp(10));
+        gs.setOnClickListener(v -> showGridSettings(anchor));
+        box.addView(gs);
 
         TextView zoom = label(act.getString(R.string.tg_zoom), 15, fg);
         zoom.setPadding(dp(4), dp(12), 0, dp(6));
@@ -658,6 +644,146 @@ final class EditorUi {
         stylus.setPadding(0, dp(10), 0, 0);
         box.addView(stylus);
         show(box, anchor, panelWidth(320), true);
+    }
+
+    private static final int[] GRID_COLORS = {
+        0x80808080, 0xCC808080, 0xFF000000, 0xFFFFFFFF, 0xFFE53935, 0xFF1E88E5, 0xFF43A047, 0xFFFDD835
+    };
+
+    private void gridSlider(LinearLayout box, int title, String key, int from, int to, boolean px) {
+        int cur = Math.max(from, Math.min(to, Opts.num(act, key)));
+        TextView t = label("", 14, fg);
+        t.setText(act.getString(title) + ": " + cur);
+        t.setPadding(dp(4), dp(8), 0, 0);
+        Slider sl = slider(from, to, cur);
+        sl.addOnChangeListener((x, v, user) -> {
+            t.setText(act.getString(title) + ": " + (int) v);
+            if (user) {
+                Opts.setNum(act, key, (int) v);
+                canvas.applySettings();
+            }
+        });
+        box.addView(t);
+        box.addView(sl);
+    }
+
+    private void gridColors(LinearLayout box, int title, String key) {
+        TextView t = label(act.getString(title), 14, fg);
+        t.setPadding(dp(4), dp(8), 0, dp(4));
+        box.addView(t);
+        LinearLayout row = new LinearLayout(act);
+        int cur = Opts.num(act, key);
+        for (int c : GRID_COLORS) {
+            View sw = new View(act);
+            android.graphics.drawable.GradientDrawable d = new android.graphics.drawable.GradientDrawable();
+            d.setShape(android.graphics.drawable.GradientDrawable.OVAL);
+            d.setColor(c | 0xFF000000);
+            d.setStroke(dp(c == cur ? 3 : 1), c == cur ? accent : 0x66808080);
+            sw.setBackground(d);
+            sw.setOnClickListener(v -> {
+                Opts.setNum(act, key, c);
+                canvas.applySettings();
+                showGridSettings(gridAnchor);
+            });
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(30), dp(30));
+            lp.rightMargin = dp(8);
+            row.addView(sw, lp);
+        }
+        box.addView(row);
+    }
+
+    /** The grid panel, with the same options as ibis Paint: two intervals, two colours, position. */
+    private View gridAnchor;
+
+    void showGridSettings(View anchor) {
+        gridAnchor = anchor;
+        LinearLayout box = new LinearLayout(act);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.addView(label(act.getString(R.string.grid_settings), 16, fg));
+        box.addView(switchRow(R.string.grid_show, Opts.flag(act, Opts.GRID), on -> {
+            Opts.setFlag(act, Opts.GRID, on);
+            canvas.applySettings();
+        }));
+        gridSlider(box, R.string.grid_1, Opts.GRID_SIZE, 1, 128, true);
+        gridSlider(box, R.string.grid_2, Opts.GRID2, 1, 16, false);
+        gridColors(box, R.string.grid_c1, Opts.GRID_C1);
+        gridColors(box, R.string.grid_c2, Opts.GRID_C2);
+        gridSlider(box, R.string.grid_x, Opts.GRID_X, 0, 128, true);
+        gridSlider(box, R.string.grid_y, Opts.GRID_Y, 0, 128, true);
+        TextView reset = label(act.getString(R.string.grid_reset), 15, accent);
+        reset.setPadding(dp(4), dp(12), dp(4), dp(8));
+        reset.setOnClickListener(v -> {
+            Opts.setNum(act, Opts.GRID_SIZE, 16);
+            Opts.setNum(act, Opts.GRID2, 4);
+            Opts.setNum(act, Opts.GRID_C1, 0x80808080);
+            Opts.setNum(act, Opts.GRID_C2, 0xCC808080);
+            Opts.setNum(act, Opts.GRID_X, 0);
+            Opts.setNum(act, Opts.GRID_Y, 0);
+            canvas.applySettings();
+            showGridSettings(anchor);
+        });
+        box.addView(reset);
+        ScrollView sv = new ScrollView(act);
+        sv.addView(box);
+        show(sv, anchor, panelWidth(320), true);
+    }
+
+    /** One of the four squares that choose how transparent pixels look. */
+    private View paperSwatch(final int mode) {
+        final boolean sel = Opts.num(act, Opts.PAPER) == mode;
+        View v = new View(act) {
+            @Override
+            protected void onDraw(Canvas c) {
+                int w = getWidth();
+                int h = getHeight();
+                android.graphics.Paint p = new android.graphics.Paint();
+                if (mode == 0) {
+                    p.setColor(Color.WHITE);
+                    c.drawRect(0, 0, w, h, p);
+                } else if (mode == 1 || mode == 2) {
+                    int n = 4;
+                    for (int y = 0; y < n; y++) {
+                        for (int x = 0; x < n; x++) {
+                            boolean a = (x + y) % 2 == 0;
+                            p.setColor(mode == 1 ? (a ? 0xFFFFFFFF : 0xFFD2D2D2) : (a ? 0xFF707070 : 0xFF4A4A4A));
+                            c.drawRect(x * w / (float) n, y * h / (float) n, (x + 1) * w / (float) n,
+                                    (y + 1) * h / (float) n, p);
+                        }
+                    }
+                } else {
+                    p.setColor(0xFFEEEEEE);
+                    c.drawRect(0, 0, w, h, p);
+                    p.setColor(0xFFCC3333);
+                    p.setStrokeWidth(dp(2));
+                    c.drawLine(0, h, w, 0, p);
+                }
+                android.graphics.Paint b = new android.graphics.Paint();
+                b.setStyle(android.graphics.Paint.Style.STROKE);
+                b.setStrokeWidth(dp(sel ? 3 : 1));
+                b.setColor(sel ? 0xFF2196F3 : 0xFF888888);
+                c.drawRect(dp(1), dp(1), w - dp(1), h - dp(1), b);
+            }
+        };
+        v.setContentDescription(act.getString(R.string.paper_hint));
+        v.setOnClickListener(x -> {
+            Opts.setNum(act, Opts.PAPER, mode);
+            canvas.applySettings();
+            if (paperRow != null) {
+                paperRow.removeAllViews();
+                fillPaperRow();
+            }
+        });
+        return v;
+    }
+
+    private LinearLayout paperRow;
+
+    private void fillPaperRow() {
+        for (int m = 0; m < 4; m++) {
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(34), dp(34));
+            lp.rightMargin = dp(8);
+            paperRow.addView(paperSwatch(m), lp);
+        }
     }
 
     private LinearLayout switchRow(int text, boolean on, java.util.function.Consumer<Boolean> change) {
@@ -1047,22 +1173,40 @@ final class EditorUi {
         layerRows.setOrientation(LinearLayout.VERTICAL);
         ScrollView scroll = new ScrollView(act);
         scroll.addView(layerRows);
-        box.addView(scroll, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
-                dp(240)));
+        int bar = classic ? 0xFF000000 : 0x22808080;
 
-        LinearLayout actions = new LinearLayout(act);
-        actions.setGravity(Gravity.CENTER);
-        actions.addView(actionButton(R.drawable.ic_add, R.string.add_layer, v -> addLayer()), actionLp());
-        actions.addView(actionButton(R.drawable.ic_duplicate, R.string.layer_duplicate,
-                v -> duplicateLayer()), actionLp());
-        actions.addView(actionButton(R.drawable.ic_merge, R.string.layer_merge, v -> mergeLayer()),
-                actionLp());
-        actions.addView(actionButton(R.drawable.ic_up, R.string.move_up, v -> moveActive(1)), actionLp());
-        actions.addView(actionButton(R.drawable.ic_down, R.string.move_down, v -> moveActive(-1)), actionLp());
-        actions.addView(actionButton(R.drawable.ic_delete, R.string.delete_layer, v -> deleteLayer()), actionLp());
-        ImageButton more = actionButton(R.drawable.ic_more, R.string.layer_more, v -> showLayerMenu(v));
-        actions.addView(more, actionLp());
-        box.addView(actions);
+        LinearLayout left = sideBar(bar);
+        left.addView(actionButton(R.drawable.ic_add, R.string.add_layer, v -> addLayer()), sideLp());
+        left.addView(actionButton(R.drawable.ic_duplicate, R.string.layer_duplicate,
+                v -> duplicateLayer()), sideLp());
+        left.addView(actionButton(R.drawable.ic_flip_h, R.string.layer_flip_h, v -> flipActive(true)), sideLp());
+        left.addView(actionButton(R.drawable.ic_flip_v, R.string.layer_flip_v, v -> flipActive(false)), sideLp());
+
+        LinearLayout right = sideBar(bar);
+        right.addView(actionButton(R.drawable.ic_up, R.string.move_up, v -> moveActive(1)), sideLp());
+        right.addView(actionButton(R.drawable.ic_down, R.string.move_down, v -> moveActive(-1)), sideLp());
+        right.addView(actionButton(R.drawable.ic_merge, R.string.layer_merge, v -> mergeLayer()), sideLp());
+        right.addView(actionButton(R.drawable.ic_delete, R.string.delete_layer, v -> deleteLayer()), sideLp());
+        right.addView(actionButton(R.drawable.ic_more, R.string.layer_more, v -> showLayerMenu(v)), sideLp());
+
+        LinearLayout centre = new LinearLayout(act);
+        centre.setOrientation(LinearLayout.VERTICAL);
+        scroll.setBackground(round(classic ? 0xFFF2F2F2 : 0x11808080, 4));
+        centre.addView(scroll, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
+        paperRow = new LinearLayout(act);
+        paperRow.setGravity(Gravity.CENTER);
+        paperRow.setPadding(0, dp(8), 0, dp(4));
+        fillPaperRow();
+        centre.addView(paperRow);
+
+        LinearLayout mid = new LinearLayout(act);
+        mid.addView(left, new LinearLayout.LayoutParams(dp(46), ViewGroup.LayoutParams.MATCH_PARENT));
+        LinearLayout.LayoutParams cl = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f);
+        cl.leftMargin = dp(4);
+        cl.rightMargin = dp(4);
+        mid.addView(centre, cl);
+        mid.addView(right, new LinearLayout.LayoutParams(dp(46), ViewGroup.LayoutParams.MATCH_PARENT));
+        box.addView(mid, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(300)));
 
         layerOpacityText = label("100%", 14, fg);
         layerOpacity = slider(0, 100, 100);
@@ -1263,6 +1407,26 @@ final class EditorUi {
         row.addView(value, new LinearLayout.LayoutParams(dp(52), ViewGroup.LayoutParams.WRAP_CONTENT));
         row.addView(s, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
         return row;
+    }
+
+    private LinearLayout sideBar(int color) {
+        LinearLayout l = new LinearLayout(act);
+        l.setOrientation(LinearLayout.VERTICAL);
+        l.setBackground(round(color, 6));
+        return l;
+    }
+
+    private LinearLayout.LayoutParams sideLp() {
+        return new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f);
+    }
+
+    private void flipActive(boolean horizontal) {
+        if (!canvas.isIdle()) {
+            return;
+        }
+        canvas.getEditor().flipLayer(canvas.getActiveLayer(), horizontal);
+        canvas.layersChanged();
+        layersEdited();
     }
 
     private LinearLayout.LayoutParams actionLp() {

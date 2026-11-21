@@ -128,7 +128,16 @@ public class CanvasView extends View {
     private float quickY;
     private int quickRgb;
     private boolean optGrid;
-    private int gridSize = 32;
+    private int gridSize = 16;
+    private int grid2 = 4;
+    private int gridC1 = 0x80808080;
+    private int gridC2 = 0xCC808080;
+    private int gridX;
+    private int gridY;
+    private int paper = PAPER;
+    private int paperMode;
+    private final android.graphics.Paint checkPaint = new android.graphics.Paint();
+    private int checkFor = -1;
     private final android.graphics.Paint gridPaint = new android.graphics.Paint();
     private final android.graphics.Path gridPath = new android.graphics.Path();
     private final android.graphics.Paint pinPaint = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
@@ -193,7 +202,18 @@ public class CanvasView extends View {
         optPalm = Opts.num(c, Opts.PALM) == 1;
         optUndoMsg = Opts.flag(c, Opts.UNDO_MSG);
         optGrid = Opts.flag(c, Opts.GRID);
-        gridSize = Math.max(2, Opts.num(c, Opts.GRID_SIZE));
+        gridSize = Math.max(1, Opts.num(c, Opts.GRID_SIZE));
+        grid2 = Math.max(1, Opts.num(c, Opts.GRID2));
+        gridC1 = Opts.num(c, Opts.GRID_C1);
+        gridC2 = Opts.num(c, Opts.GRID_C2);
+        gridX = Opts.num(c, Opts.GRID_X);
+        gridY = Opts.num(c, Opts.GRID_Y);
+        int mode = Opts.num(c, Opts.PAPER);
+        if (mode != paperMode) {
+            paperMode = mode;
+            paper = mode == 0 ? PAPER : 0; // other looks keep transparent pixels see-through
+            layersChanged();
+        }
         tilePaint.setFilterBitmap(Opts.flag(c, Opts.SMOOTH_ZOOM));
         invalidate();
     }
@@ -470,6 +490,19 @@ public class CanvasView extends View {
 
     // ------------------------------------------------------------------ tiles
 
+    private static void unpremultiply(int[] px, int n) {
+        for (int i = 0; i < n; i++) {
+            int v = px[i];
+            int a = v >>> 24;
+            if (a != 0 && a != 255) {
+                int r = Math.min(255, ((v >> 16) & 0xFF) * 255 / a);
+                int g = Math.min(255, ((v >> 8) & 0xFF) * 255 / a);
+                int b = Math.min(255, (v & 0xFF) * 255 / a);
+                px[i] = (a << 24) | (r << 16) | (g << 8) | b;
+            }
+        }
+    }
+
     private void markStale(Rect r) {
         if (r.isEmpty()) {
             return;
@@ -537,7 +570,10 @@ public class CanvasView extends View {
             bt = Math.min(dirty[3], h);
         }
         if (r > l && bt > t) {
-            document.flattenRect(new Rect(left + l, top + t, left + r, top + bt), PAPER, scratch);
+            document.flattenRect(new Rect(left + l, top + t, left + r, top + bt), paper, scratch);
+            if (paper == 0) {
+                unpremultiply(scratch, (r - l) * (bt - t));
+            }
             b.setPixels(scratch, 0, r - l, l, t, r - l, bt - t);
         }
         stale.remove(key);
@@ -548,6 +584,9 @@ public class CanvasView extends View {
     protected void onDraw(Canvas canvas) {
         long start = System.nanoTime();
         canvas.drawRect(0, 0, getWidth(), getHeight(), backgroundPaint);
+        if (paperMode == 1 || paperMode == 2) {
+            drawChecker(canvas);
+        }
         matrix.invert(inverse);
         tmp.set(0, 0, getWidth(), getHeight());
         inverse.mapRect(tmp);
@@ -591,44 +630,87 @@ public class CanvasView extends View {
         }
     }
 
-    /** Thin lines every gridSize pixels of the picture; hidden when they would be too dense. */
+    /** The pattern under transparent pixels: light or dark squares of a fixed size on screen. */
+    private void drawChecker(Canvas canvas) {
+        if (checkFor != paperMode) {
+            checkFor = paperMode;
+            int cell = Math.round(8 * getResources().getDisplayMetrics().density);
+            int c1 = paperMode == 1 ? 0xFFFFFFFF : 0xFF707070;
+            int c2 = paperMode == 1 ? 0xFFD2D2D2 : 0xFF4A4A4A;
+            Bitmap pat = Bitmap.createBitmap(cell * 2, cell * 2, Bitmap.Config.ARGB_8888);
+            for (int y = 0; y < cell * 2; y++) {
+                for (int x = 0; x < cell * 2; x++) {
+                    pat.setPixel(x, y, ((x / cell) + (y / cell)) % 2 == 0 ? c1 : c2);
+                }
+            }
+            checkPaint.setShader(new android.graphics.BitmapShader(pat,
+                    android.graphics.Shader.TileMode.REPEAT, android.graphics.Shader.TileMode.REPEAT));
+        }
+        tmp.set(0, 0, document.getWidth(), document.getHeight());
+        matrix.mapRect(tmp);
+        canvas.save();
+        canvas.clipRect(tmp);
+        canvas.drawPaint(checkPaint);
+        canvas.restore();
+    }
+
+    /**
+     * Two grids: thin lines every [gridSize] pixels and, on top, every [grid2]-th line in the
+     * second colour. [gridX] and [gridY] shift both. Lines too close together are skipped.
+     */
     private void drawGrid(Canvas canvas) {
         float scale = (float) Math.hypot(values(matrix, Matrix.MSCALE_X), values(matrix, Matrix.MSKEW_Y));
-        float step = gridSize * scale;
-        if (step < 4f * getResources().getDisplayMetrics().density) {
+        float d = getResources().getDisplayMetrics().density;
+        boolean fine = gridSize * scale >= 5f;
+        boolean coarse = gridSize * grid2 * scale >= 5f;
+        if (!fine && !coarse) {
             return;
         }
-        float d = getResources().getDisplayMetrics().density;
-        gridPaint.setStyle(android.graphics.Paint.Style.STROKE);
-        gridPaint.setStrokeWidth(Math.max(1f, d));
         matrix.invert(inverse);
         tmp.set(0, 0, getWidth(), getHeight());
         inverse.mapRect(tmp);
         int w = document.getWidth();
         int h = document.getHeight();
-        gridPath.reset();
+        gridPaint.setStyle(android.graphics.Paint.Style.STROKE);
         float[] p = new float[4];
-        int first = (int) Math.max(0, Math.floor(tmp.left / gridSize)) * gridSize;
-        for (int gx = first; gx <= w && gx <= tmp.right; gx += gridSize) {
-            p[0] = gx; p[1] = 0; p[2] = gx; p[3] = h;
-            matrix.mapPoints(p);
-            gridPath.moveTo(p[0], p[1]);
-            gridPath.lineTo(p[2], p[3]);
+        for (int pass = 0; pass < 2; pass++) {
+            boolean major = pass == 1;
+            if (major ? !coarse : !fine) {
+                continue;
+            }
+            gridPath.reset();
+            for (int axis = 0; axis < 2; axis++) {
+                int extent = axis == 0 ? w : h;
+                int offset = axis == 0 ? gridX : gridY;
+                float lo = axis == 0 ? tmp.left : tmp.top;
+                float hi = axis == 0 ? tmp.right : tmp.bottom;
+                int k0 = (int) Math.floor((Math.max(0, lo) - offset) / (float) gridSize);
+                for (int k = k0; ; k++) {
+                    long pos = (long) offset + (long) k * gridSize;
+                    if (pos > extent || pos > hi) {
+                        break;
+                    }
+                    if (pos < 0) {
+                        continue;
+                    }
+                    boolean isMajor = Math.floorMod(k, grid2) == 0;
+                    if (major != isMajor) {
+                        continue;
+                    }
+                    if (axis == 0) {
+                        p[0] = pos; p[1] = 0; p[2] = pos; p[3] = h;
+                    } else {
+                        p[0] = 0; p[1] = pos; p[2] = w; p[3] = pos;
+                    }
+                    matrix.mapPoints(p);
+                    gridPath.moveTo(p[0], p[1]);
+                    gridPath.lineTo(p[2], p[3]);
+                }
+            }
+            gridPaint.setColor(major ? gridC2 : gridC1);
+            gridPaint.setStrokeWidth(Math.max(1f, major ? d * 1.2f : d * 0.8f));
+            canvas.drawPath(gridPath, gridPaint);
         }
-        first = (int) Math.max(0, Math.floor(tmp.top / gridSize)) * gridSize;
-        for (int gy = first; gy <= h && gy <= tmp.bottom; gy += gridSize) {
-            p[0] = 0; p[1] = gy; p[2] = w; p[3] = gy;
-            matrix.mapPoints(p);
-            gridPath.moveTo(p[0], p[1]);
-            gridPath.lineTo(p[2], p[3]);
-        }
-        gridPaint.setColor(0x80000000);
-        canvas.drawPath(gridPath, gridPaint);
-        canvas.save();
-        canvas.translate(d, d);
-        gridPaint.setColor(0x99FFFFFF);
-        canvas.drawPath(gridPath, gridPaint);
-        canvas.restore();
     }
 
     private static float values(Matrix m, int index) {
@@ -684,6 +766,38 @@ public class CanvasView extends View {
             quickY = sy;
         }
         matrix.invert(inverse);
+        if (quick) {
+            // The cancelled first dab is removed on the drawing thread, so sample there too:
+            // reading here could return the colour of the dab itself.
+            point[0] = sx;
+            point[1] = sy;
+            inverse.mapPoints(point);
+            final int qx = (int) Math.floor(point[0]);
+            final int qy = (int) Math.floor(point[1]);
+            final Document doc = document;
+            invalidate();
+            if (qx < 0 || qy < 0 || qx >= doc.getWidth() || qy >= doc.getHeight()) {
+                return;
+            }
+            worker.execute(new Runnable() {
+                @Override
+                public void run() {
+                    final int rgb = doc.flattenRect(new Rect(qx, qy, qx + 1, qy + 1), PAPER)[0] & 0xFFFFFF;
+                    post(new Runnable() {
+                        @Override
+                        public void run() {
+                            if (!quickHeld) {
+                                return;
+                            }
+                            quickRgb = rgb;
+                            invalidate();
+                            target.onPick(rgb);
+                        }
+                    });
+                }
+            });
+            return;
+        }
         point[0] = sx;
         point[1] = sy;
         inverse.mapPoints(point);
@@ -923,7 +1037,7 @@ public class CanvasView extends View {
             got = bufferPool.poll();
         }
         final int[] buf = got != null ? got : new int[need];
-        doc.flattenTiles(origins, count, TILE, PAPER, buf, true);
+        doc.flattenTiles(origins, count, TILE, paper, buf, true);
         float ms = (System.nanoTime() - startNanos) / 1e6f;
         rasterMs = ms;
         rasterWorstMs = Math.max(ms, rasterWorstMs * 0.98f);

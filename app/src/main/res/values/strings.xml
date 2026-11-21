@@ -230,4 +230,16 @@
     <string name="act_erase">Erase</string>
     <string name="act_clear">Clear layer</string>
     <string name="act_flip">Flip layer</string>
+    <string name="grid_settings">Grid settings</string>
+    <string name="grid_show">Show grid</string>
+    <string name="grid_1">Grid 1 interval</string>
+    <string name="grid_2">Grid 2 interval (every N lines)</string>
+    <string name="grid_c1">Grid 1 colour</string>
+    <string name="grid_c2">Grid 2 colour</string>
+    <string name="grid_x">Position X</string>
+    <string name="grid_y">Position Y</string>
+    <string name="grid_reset">Reset</string>
+    <string name="n_px">%1$d px</string>
+    <string name="n_plain">%1$d</string>
+    <string name="paper_hint">Transparent background look</string>
 </resources>

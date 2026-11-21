@@ -229,4 +229,16 @@
     <string name="act_erase">Стирання</string>
     <string name="act_clear">Очищення шару</string>
     <string name="act_flip">Віддзеркалення шару</string>
+    <string name="grid_settings">Налаштування сітки</string>
+    <string name="grid_show">Показувати сітку</string>
+    <string name="grid_1">Інтервал сітки 1</string>
+    <string name="grid_2">Інтервал сітки 2 (кожні N ліній)</string>
+    <string name="grid_c1">Колір сітки 1</string>
+    <string name="grid_c2">Колір сітки 2</string>
+    <string name="grid_x">Позиція X</string>
+    <string name="grid_y">Позиція Y</string>
+    <string name="grid_reset">Скинути</string>
+    <string name="n_px">%1$d px</string>
+    <string name="n_plain">%1$d</string>
+    <string name="paper_hint">Вигляд прозорого фону</string>
 </resources>

@@ -30,10 +30,16 @@ final class Opts {
     static final String PALM = "s_palm";
     static final String GRID = "v_grid";
     static final String GRID_SIZE = "v_grid_size";
+    static final String GRID2 = "v_grid2";
+    static final String GRID_C1 = "v_gc1";
+    static final String GRID_C2 = "v_gc2";
+    static final String GRID_X = "v_gx";
+    static final String GRID_Y = "v_gy";
+    static final String PAPER = "u_paper";
 
     private static final String[] KEYS = {UNDO_TAP, REDO_TAP, QUICK_PICK, QUICK_MS, SMOOTH_ZOOM,
         UNDO_MSG, ADD_CURRENT, TOOL_COLS, TOOL_LABELS, ROW_HEIGHT, BACKDROP, PRESSURE,
-        PRESSURE_CURVE, OFFSET_X, OFFSET_Y, PALM, GRID, GRID_SIZE};
+        PRESSURE_CURVE, OFFSET_X, OFFSET_Y, PALM, GRID, GRID_SIZE, GRID2, GRID_C1, GRID_C2, GRID_X, GRID_Y, PAPER};
 
     private Opts() {
     }
@@ -56,7 +62,10 @@ final class Opts {
             case QUICK_MS: return 500;
             case TOOL_COLS: return 2;
             case ROW_HEIGHT: return 56;
-            case GRID_SIZE: return 32;
+            case GRID_SIZE: return 16;
+            case GRID2: return 4;
+            case GRID_C1: return 0x80808080;
+            case GRID_C2: return 0xCC808080;
             case PRESSURE_CURVE: return 1;
             default: return 0; // BACKDROP 0 = the usual colour, offsets 0, PALM 0 = off
         }
