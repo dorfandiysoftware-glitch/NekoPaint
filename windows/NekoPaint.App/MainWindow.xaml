@@ -58,6 +58,18 @@
                     </Flyout>
                 </Button.Flyout>
             </Button>
+            <Button x:Name="PaperButton" ToolTipService.ToolTip="Колір паперу (фон під шарами, гумка його не стирає)" Content="Папір">
+                <Button.Flyout>
+                    <Flyout>
+                        <StackPanel Spacing="8">
+                            <Button Content="Білий" Click="OnPaperWhite" HorizontalAlignment="Stretch" />
+                            <Button Content="Чорний" Click="OnPaperBlack" HorizontalAlignment="Stretch" />
+                            <Button Content="Прозорий (клітинка)" Click="OnPaperTransparent" HorizontalAlignment="Stretch" />
+                            <Button Content="Колір кисті" Click="OnPaperBrushColor" HorizontalAlignment="Stretch" />
+                        </StackPanel>
+                    </Flyout>
+                </Button.Flyout>
+            </Button>
             <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
                 <TextBlock Text="Розмір" VerticalAlignment="Center" />
                 <Slider x:Name="SizeSlider" Minimum="1" Maximum="300" Value="12" Width="150" />
@@ -103,12 +115,12 @@
                     </Grid.RowDefinitions>
                     <StackPanel Orientation="Horizontal" Spacing="4" Grid.Row="0" Margin="0,0,0,8">
                         <TextBlock Text="Шари" Style="{StaticResource SubtitleTextBlockStyle}" VerticalAlignment="Center" Margin="0,0,8,0" />
-                        <Button Click="OnAddLayer" ToolTipService.ToolTip="Новий шар"><SymbolIcon Symbol="Add" /></Button>
+                        <Button x:Name="AddBtn" Click="OnAddLayer" ToolTipService.ToolTip="Новий шар"><SymbolIcon Symbol="Add" /></Button>
                         <Button Click="OnDuplicateLayer" ToolTipService.ToolTip="Дублювати"><SymbolIcon Symbol="Copy" /></Button>
-                        <Button Click="OnMergeDown" ToolTipService.ToolTip="Об'єднати з нижнім"><FontIcon Glyph="&#xE8B9;" /></Button>
-                        <Button Click="OnDeleteLayer" ToolTipService.ToolTip="Видалити"><SymbolIcon Symbol="Delete" /></Button>
-                        <Button Click="OnLayerUp" ToolTipService.ToolTip="Вище"><SymbolIcon Symbol="Up" /></Button>
-                        <Button Click="OnLayerDown" ToolTipService.ToolTip="Нижче"><SymbolIcon Symbol="Download" /></Button>
+                        <Button x:Name="MergeBtn" Click="OnMergeDown" Content="Злити ↓" ToolTipService.ToolTip="Об'єднати з нижнім шаром" />
+                        <Button x:Name="DeleteBtn" Click="OnDeleteLayer" ToolTipService.ToolTip="Видалити"><SymbolIcon Symbol="Delete" /></Button>
+                        <Button x:Name="UpBtn" Click="OnLayerUp" ToolTipService.ToolTip="Вище"><SymbolIcon Symbol="Up" /></Button>
+                        <Button x:Name="DownBtn" Click="OnLayerDown" ToolTipService.ToolTip="Нижче"><SymbolIcon Symbol="Download" /></Button>
                     </StackPanel>
                     <ListView x:Name="LayerList" Grid.Row="1" SelectionMode="Single" SelectionChanged="OnLayerSelected">
                         <ListView.ItemTemplate>

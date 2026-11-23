@@ -18,7 +18,7 @@ namespace NekoPaint.Core
         private const string ThumbPath = "Thumbnails/thumbnail.png";
         private static readonly UTF8Encoding Utf8 = new UTF8Encoding(false);
 
-        public static void Write(Document document, Stream output)
+        public static void Write(Document document, Stream output, int paperArgb = 0)
         {
             using (var zip = new ZipArchive(output, ZipArchiveMode.Create, true, Utf8))
             {
@@ -47,7 +47,7 @@ namespace NekoPaint.Core
                 xml.Append("</stack>\n</image>\n");
                 PutEntry(zip, "stack.xml", Utf8.GetBytes(xml.ToString()), CompressionLevel.Optimal);
 
-                int[] flat = document.Flatten();
+                int[] flat = document.Flatten(paperArgb);
                 int[] preview = ScaleDown(flat, w, h, Thumb);
                 int tw = Math.Max(1, w * Math.Min(Thumb, Math.Max(w, h)) / Math.Max(w, h));
                 int th = preview.Length / tw;

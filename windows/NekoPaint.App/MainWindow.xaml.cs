@@ -46,6 +46,7 @@ namespace NekoPaint.App
         private bool _eraser;
         private int _rgb;
         private string _posText = "";
+        private int _paper = -1; // straight ARGB; 0 = transparent (shown as a check pattern)
 
         public MainWindow()
         {
@@ -64,10 +65,8 @@ namespace NekoPaint.App
         private void NewDocument(int w, int h)
         {
             var d = new Document(w, h);
-            var bg = d.AddLayer("Фон");
-            var white = new int[w * h];
-            Array.Fill(white, -1);
-            bg.PasteRect(new CoreRect(0, 0, w, h), white);
+            d.AddLayer("Шар 1");
+            _paper = -1;
             SetDocument(d, null);
         }
 
@@ -75,6 +74,7 @@ namespace NekoPaint.App
         {
             _doc = d;
             _ed = new Editor(d, 100);
+            _stroke = null;
             _file = file;
             _active = d.LayerCount - 1;
             _bmp = new WriteableBitmap(d.Width, d.Height);
@@ -100,7 +100,18 @@ namespace NekoPaint.App
             var area = new CoreRect(x0, y0, x1, y1);
             int w = area.Width, h = area.Height;
             var px = new int[w * h];
-            _doc.FlattenRect(area, 0, px);
+            _doc.FlattenRect(area, _paper, px);
+            if (_paper == 0) // transparent paper: show a check pattern under the picture
+            {
+                for (int y = 0; y < h; y++)
+                    for (int x = 0; x < w; x++)
+                    {
+                        int i = y * w + x;
+                        if (PixelOps.Alpha(px[i]) == 255) continue;
+                        int c = (((x0 + x) >> 3) + ((y0 + y) >> 3)) % 2 == 0 ? unchecked((int)0xFFFFFFFF) : unchecked((int)0xFFCCCCCC);
+                        px[i] = Blend.Apply(BlendMode.Normal, px[i], c);
+                    }
+            }
             var row = new byte[w * 4];
             for (int y = 0; y < h; y++)
             {
@@ -252,6 +263,20 @@ namespace NekoPaint.App
             ColorSwatch.Fill = new SolidColorBrush(c);
         }
 
+        // ---------- paper ----------
+
+        private void SetPaper(int argb)
+        {
+            _paper = argb;
+            PaperButton.Flyout.Hide();
+            if (_doc != null) RenderAll();
+        }
+
+        private void OnPaperWhite(object sender, RoutedEventArgs e) => SetPaper(-1);
+        private void OnPaperBlack(object sender, RoutedEventArgs e) => SetPaper(unchecked((int)0xFF000000));
+        private void OnPaperTransparent(object sender, RoutedEventArgs e) => SetPaper(0);
+        private void OnPaperBrushColor(object sender, RoutedEventArgs e) => SetPaper(unchecked((int)0xFF000000) | _rgb);
+
         // ---------- undo / redo ----------
 
         private void UpdateButtons()
@@ -305,6 +330,10 @@ namespace NekoPaint.App
             AlphaLockCheck.IsChecked = l.AlphaLock;
             ClipCheck.IsChecked = l.Clipped;
             _suppress = false;
+            MergeBtn.IsEnabled = _active >= 1;
+            DeleteBtn.IsEnabled = _doc.LayerCount > 1;
+            UpBtn.IsEnabled = _active < _doc.LayerCount - 1;
+            DownBtn.IsEnabled = _active > 0;
         }
 
         private void OnLayerSelected(object sender, SelectionChangedEventArgs e)
@@ -492,7 +521,7 @@ namespace NekoPaint.App
             try
             {
                 var ms = new MemoryStream();
-                OpenRaster.Write(_doc, ms);
+                OpenRaster.Write(_doc, ms, _paper);
                 using (var s = await file.OpenStreamForWriteAsync())
                 {
                     s.SetLength(0);
@@ -520,7 +549,7 @@ namespace NekoPaint.App
             try
             {
                 var ms = new MemoryStream();
-                PngCodec.Encode(_doc.Width, _doc.Height, _doc.Flatten(), ms);
+                PngCodec.Encode(_doc.Width, _doc.Height, _doc.Flatten(_paper), ms);
                 using (var s = await file.OpenStreamForWriteAsync())
                 {
                     s.SetLength(0);
