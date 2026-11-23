@@ -25,7 +25,6 @@ jobs:
           cmake --build native/build-win --config Release
           New-Item -ItemType Directory -Force windows/native-bin | Out-Null
           Copy-Item native/build-win/Release/nekocore.dll windows/native-bin/nekocore.dll
-          dumpbin /exports windows/native-bin/nekocore.dll | Select-String "np_"
 
       - uses: actions/setup-dotnet@v4
         with:
