@@ -2,12 +2,17 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Class="NekoPaint.Linux.MainWindow"
         Title="NekoPaint" Width="1400" Height="900" MinWidth="900" MinHeight="600">
+    <Window.Styles>
+        <Style Selector="WrapPanel > :is(Control)">
+            <Setter Property="Margin" Value="0,0,8,6" />
+        </Style>
+    </Window.Styles>
     <DockPanel>
         <!-- status bar -->
         <TextBlock x:Name="StatusText" DockPanel.Dock="Bottom" Margin="14,4,14,8" Opacity="0.75" FontSize="12" />
 
         <!-- file / edit commands -->
-        <WrapPanel DockPanel.Dock="Top" Margin="10,8,10,2" ItemSpacing="6" LineSpacing="6">
+        <WrapPanel DockPanel.Dock="Top" Margin="10,8,10,2">
             <Button Content="Нове">
                 <Button.Flyout>
                     <Flyout>
@@ -32,7 +37,7 @@
         </WrapPanel>
 
         <!-- brush settings -->
-        <WrapPanel DockPanel.Dock="Top" Margin="10,2,10,8" ItemSpacing="14" LineSpacing="6">
+        <WrapPanel DockPanel.Dock="Top" Margin="10,2,10,8">
             <ToggleButton x:Name="PenButton" Content="Перо" IsChecked="True" Click="OnPen" />
             <ToggleButton x:Name="EraserButton" Content="Гумка" Click="OnEraser" />
             <Button x:Name="ColorButton" ToolTip.Tip="Колір">
@@ -81,7 +86,7 @@
             <DockPanel>
                 <StackPanel DockPanel.Dock="Top" Spacing="6" Margin="0,0,0,8">
                     <TextBlock Text="Шари" FontSize="16" FontWeight="SemiBold" />
-                    <WrapPanel ItemSpacing="4" LineSpacing="4">
+                    <WrapPanel>
                         <Button Content="＋" ToolTip.Tip="Новий шар" Click="OnAddLayer" />
                         <Button Content="Дубл." ToolTip.Tip="Дублювати" Click="OnDuplicateLayer" />
                         <Button x:Name="MergeBtn" Content="Злити ↓" ToolTip.Tip="Об'єднати з нижнім шаром" Click="OnMergeDown" />
