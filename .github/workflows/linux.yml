@@ -1,0 +1,65 @@
+name: Linux
+
+on:
+  push:
+    paths: ['linux/**', 'windows/NekoPaint.Core/**', 'native/**', '.github/workflows/linux.yml']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release tag to publish, e.g. v0.3.0-linux1 (empty = only build)'
+        required: false
+        default: ''
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build libnekocore.so (C drawing core, baseline x86-64, no -march=native)
+        run: |
+          cmake -S native -B native/build-linux -DNP_JNI=OFF -DCMAKE_BUILD_TYPE=Release
+          cmake --build native/build-linux
+          mkdir -p linux/native-bin windows/native-bin
+          cp native/build-linux/libnekocore.so linux/native-bin/
+          cp native/build-linux/libnekocore.so windows/native-bin/
+          nm -D linux/native-bin/libnekocore.so | grep " T np_"
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Core tests (the same suite as on Windows, now against libnekocore.so)
+        env:
+          NEKOPAINT_REQUIRE_NATIVE: '1'
+        run: |
+          cp native/build-linux/libnekocore.so windows/native-bin/libnekocore.so
+          dotnet test windows/NekoPaint.Core.Tests/NekoPaint.Core.Tests.csproj -c Release --logger "console;verbosity=normal"
+
+      - name: Publish app
+        run: dotnet publish linux/NekoPaint.Linux/NekoPaint.Linux.csproj -c Release -r linux-x64 --self-contained -o publish
+
+      - name: Package
+        run: |
+          ver='${{ github.event.inputs.version }}'
+          [ -z "$ver" ] && ver="ci-${{ github.run_number }}"
+          cp native/build-linux/libnekocore.so publish/ || true
+          chmod +x publish/NekoPaint
+          tar -C publish -czf "NekoPaint-Linux-$ver-x64.tar.gz" .
+          ls -la *.tar.gz
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: NekoPaint-Linux-x64
+          path: NekoPaint-Linux-*-x64.tar.gz
+
+      - name: Release
+        if: ${{ github.event.inputs.version != '' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ github.event.inputs.version }}" NekoPaint-Linux-*-x64.tar.gz --prerelease \
+            --title "NekoPaint ${{ github.event.inputs.version }} (Linux)" \
+            --notes "Test build of the Linux port (Avalonia, self-contained x64). Extract and run ./NekoPaint. On Wayland (Hyprland) it runs through XWayland. The C drawing core is libnekocore.so next to it."

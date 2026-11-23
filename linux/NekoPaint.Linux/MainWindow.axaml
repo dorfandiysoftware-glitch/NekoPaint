@@ -1,0 +1,120 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="NekoPaint.Linux.MainWindow"
+        Title="NekoPaint" Width="1400" Height="900" MinWidth="900" MinHeight="600">
+    <DockPanel>
+        <!-- status bar -->
+        <TextBlock x:Name="StatusText" DockPanel.Dock="Bottom" Margin="14,4,14,8" Opacity="0.75" FontSize="12" />
+
+        <!-- file / edit commands -->
+        <WrapPanel DockPanel.Dock="Top" Margin="10,8,10,2" ItemSpacing="6" LineSpacing="6">
+            <Button Content="Нове">
+                <Button.Flyout>
+                    <Flyout>
+                        <StackPanel Spacing="8" Width="200">
+                            <TextBlock Text="Нове полотно" FontWeight="SemiBold" />
+                            <NumericUpDown x:Name="NewW" Minimum="64" Maximum="8000" Value="2048" FormatString="0" />
+                            <NumericUpDown x:Name="NewH" Minimum="64" Maximum="8000" Value="1536" FormatString="0" />
+                            <Button Content="Створити" Click="OnCreateNew" HorizontalAlignment="Stretch" />
+                        </StackPanel>
+                    </Flyout>
+                </Button.Flyout>
+            </Button>
+            <Button Content="Відкрити" Click="OnOpen" />
+            <Button Content="Зберегти" Click="OnSave" />
+            <Button Content="Експорт PNG" Click="OnExportPng" />
+            <Border Width="1" Background="#44808080" Margin="4,2" />
+            <Button x:Name="UndoButton" Content="Назад" Click="OnUndo" IsEnabled="False" />
+            <Button x:Name="RedoButton" Content="Вперед" Click="OnRedo" IsEnabled="False" />
+            <Border Width="1" Background="#44808080" Margin="4,2" />
+            <Button Content="Вмістити" Click="OnFit" />
+            <Button Content="Тест швидкості" Click="OnBenchmark" />
+        </WrapPanel>
+
+        <!-- brush settings -->
+        <WrapPanel DockPanel.Dock="Top" Margin="10,2,10,8" ItemSpacing="14" LineSpacing="6">
+            <ToggleButton x:Name="PenButton" Content="Перо" IsChecked="True" Click="OnPen" />
+            <ToggleButton x:Name="EraserButton" Content="Гумка" Click="OnEraser" />
+            <Button x:Name="ColorButton" ToolTip.Tip="Колір">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Border x:Name="ColorSwatch" Width="22" Height="22" CornerRadius="4" Background="Black" BorderBrush="#66808080" BorderThickness="1" />
+                    <TextBlock Text="Колір" VerticalAlignment="Center" />
+                </StackPanel>
+                <Button.Flyout>
+                    <Flyout>
+                        <StackPanel Spacing="4" Width="240">
+                            <TextBlock Text="Червоний" /><Slider x:Name="RedSlider" Minimum="0" Maximum="255" Value="0" />
+                            <TextBlock Text="Зелений" /><Slider x:Name="GreenSlider" Minimum="0" Maximum="255" Value="0" />
+                            <TextBlock Text="Синій" /><Slider x:Name="BlueSlider" Minimum="0" Maximum="255" Value="0" />
+                        </StackPanel>
+                    </Flyout>
+                </Button.Flyout>
+            </Button>
+            <Button Content="Папір" ToolTip.Tip="Колір паперу під шарами, гумка його не стирає">
+                <Button.Flyout>
+                    <Flyout>
+                        <StackPanel Spacing="8" Width="200">
+                            <Button Content="Білий" Click="OnPaperWhite" HorizontalAlignment="Stretch" />
+                            <Button Content="Чорний" Click="OnPaperBlack" HorizontalAlignment="Stretch" />
+                            <Button Content="Прозорий (клітинка)" Click="OnPaperTransparent" HorizontalAlignment="Stretch" />
+                            <Button Content="Колір кисті" Click="OnPaperBrushColor" HorizontalAlignment="Stretch" />
+                        </StackPanel>
+                    </Flyout>
+                </Button.Flyout>
+            </Button>
+            <StackPanel Orientation="Horizontal" Spacing="6">
+                <TextBlock Text="Розмір" VerticalAlignment="Center" />
+                <Slider x:Name="SizeSlider" Minimum="1" Maximum="300" Value="12" Width="150" />
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" Spacing="6">
+                <TextBlock Text="М'якість" VerticalAlignment="Center" />
+                <Slider x:Name="HardnessSlider" Minimum="0" Maximum="100" Value="80" Width="120" />
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" Spacing="6">
+                <TextBlock Text="Непрозорість" VerticalAlignment="Center" />
+                <Slider x:Name="FlowSlider" Minimum="1" Maximum="100" Value="100" Width="120" />
+            </StackPanel>
+        </WrapPanel>
+
+        <!-- layers -->
+        <Border DockPanel.Dock="Right" Width="300" Margin="6,0,10,8" Padding="10" CornerRadius="8" Background="#1FFFFFFF">
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Top" Spacing="6" Margin="0,0,0,8">
+                    <TextBlock Text="Шари" FontSize="16" FontWeight="SemiBold" />
+                    <WrapPanel ItemSpacing="4" LineSpacing="4">
+                        <Button Content="＋" ToolTip.Tip="Новий шар" Click="OnAddLayer" />
+                        <Button Content="Дубл." ToolTip.Tip="Дублювати" Click="OnDuplicateLayer" />
+                        <Button x:Name="MergeBtn" Content="Злити ↓" ToolTip.Tip="Об'єднати з нижнім шаром" Click="OnMergeDown" />
+                        <Button x:Name="DeleteBtn" Content="Видал." ToolTip.Tip="Видалити шар" Click="OnDeleteLayer" />
+                        <Button x:Name="UpBtn" Content="↑" ToolTip.Tip="Вище" Click="OnLayerUp" />
+                        <Button x:Name="DownBtn" Content="↓" ToolTip.Tip="Нижче" Click="OnLayerDown" />
+                    </WrapPanel>
+                </StackPanel>
+                <StackPanel DockPanel.Dock="Bottom" Spacing="6" Margin="0,8,0,0">
+                    <TextBlock Text="Непрозорість шару" />
+                    <Slider x:Name="LayerOpacitySlider" Minimum="0" Maximum="100" Value="100" />
+                    <TextBlock Text="Режим накладання" />
+                    <ComboBox x:Name="BlendCombo" HorizontalAlignment="Stretch" />
+                    <CheckBox x:Name="VisibleCheck" Content="Видимий" Click="OnVisibleClicked" />
+                    <CheckBox x:Name="AlphaLockCheck" Content="Блокування прозорості" Click="OnAlphaLockClicked" />
+                    <CheckBox x:Name="ClipCheck" Content="Обрізка по нижньому" Click="OnClipClicked" />
+                </StackPanel>
+                <ListBox x:Name="LayerList" SelectionChanged="OnLayerSelected">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding Display}" Opacity="{Binding ShownOpacity}" TextTrimming="CharacterEllipsis" />
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </DockPanel>
+        </Border>
+
+        <!-- canvas -->
+        <Border x:Name="Viewport" Margin="10,0,6,8" CornerRadius="8" Background="#33808080" ClipToBounds="True"
+                Focusable="True">
+            <Panel x:Name="Stage" HorizontalAlignment="Left" VerticalAlignment="Top" RenderTransformOrigin="0%,0%">
+                <Image x:Name="CanvasImage" Stretch="None" />
+            </Panel>
+        </Border>
+    </DockPanel>
+</Window>

@@ -16,6 +16,11 @@
     </None>
   </ItemGroup>
   <ItemGroup>
+    <None Include="..\native-bin\libnekocore.so" Condition="Exists('..\native-bin\libnekocore.so')" Link="libnekocore.so">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\NekoPaint.Core\NekoPaint.Core.csproj" />
   </ItemGroup>
 </Project>

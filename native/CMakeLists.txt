@@ -8,9 +8,13 @@ if(MSVC)
 else()
   add_compile_options(-O3 -ffp-contract=off)
 endif()
+option(NP_JNI "Build the JNI glue (Android, desktop JVM)" ON)
 if(WIN32)
   # Windows: plain C library for P/Invoke from the C# app, no JNI.
   set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
+  add_library(nekocore SHARED src/stroke.c)
+elseif(NOT NP_JNI)
+  # Linux/macOS desktop apps in C#: plain C library for P/Invoke.
   add_library(nekocore SHARED src/stroke.c)
 else()
   add_library(nekocore SHARED src/stroke.c src/jni.c)
