@@ -1,0 +1,60 @@
+name: Windows
+
+on:
+  push:
+    paths: ['windows/**', 'native/**', '.github/workflows/windows.yml']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release tag to publish, e.g. v0.3.0-win1 (empty = only build)'
+        required: false
+        default: ''
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build nekocore.dll (C drawing core)
+        shell: pwsh
+        run: |
+          cmake -S native -B native/build-win -A x64
+          cmake --build native/build-win --config Release
+          New-Item -ItemType Directory -Force windows/native-bin | Out-Null
+          Copy-Item native/build-win/Release/nekocore.dll windows/native-bin/nekocore.dll
+          dumpbin /exports windows/native-bin/nekocore.dll | Select-String "np_"
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Core tests
+        run: dotnet test windows/NekoPaint.Core.Tests/NekoPaint.Core.Tests.csproj -c Release --logger "console;verbosity=normal"
+
+      - name: Publish app
+        run: dotnet publish windows/NekoPaint.App/NekoPaint.App.csproj -c Release -r win-x64 -p:Platform=x64 --self-contained -o publish
+
+      - name: Package
+        shell: pwsh
+        run: |
+          if (-not (Test-Path publish/nekocore.dll)) { Copy-Item windows/native-bin/nekocore.dll publish/ }
+          $ver = '${{ github.event.inputs.version }}'
+          if (-not $ver) { $ver = 'ci-' + '${{ github.run_number }}' }
+          Compress-Archive -Path publish/* -DestinationPath "NekoPaint-Windows-$ver-x64.zip"
+          Get-ChildItem *.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: NekoPaint-Windows-x64
+          path: NekoPaint-Windows-*-x64.zip
+
+      - name: Release
+        if: ${{ github.event.inputs.version != '' }}
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ github.event.inputs.version }}" NekoPaint-Windows-*-x64.zip --prerelease --title "NekoPaint ${{ github.event.inputs.version }} (Windows)" --notes "Test build of the Windows port (WinUI 3, unpackaged, self-contained x64). Unzip and run NekoPaint.exe. The C drawing core is nekocore.dll next to it."

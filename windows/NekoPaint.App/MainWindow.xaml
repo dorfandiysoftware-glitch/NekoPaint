@@ -1,0 +1,138 @@
+<Window
+    x:Class="NekoPaint.App.MainWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <Grid x:Name="Root">
+        <Grid.KeyboardAccelerators>
+            <KeyboardAccelerator Key="Z" Modifiers="Control" Invoked="OnUndoAccel" />
+            <KeyboardAccelerator Key="Y" Modifiers="Control" Invoked="OnRedoAccel" />
+            <KeyboardAccelerator Key="S" Modifiers="Control" Invoked="OnSaveAccel" />
+            <KeyboardAccelerator Key="O" Modifiers="Control" Invoked="OnOpenAccel" />
+            <KeyboardAccelerator Key="N" Modifiers="Control" Invoked="OnNewAccel" />
+        </Grid.KeyboardAccelerators>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- Title bar (Mica shows through) -->
+        <Grid x:Name="TitleBar" Grid.Row="0" Height="40">
+            <TextBlock Text="NekoPaint" VerticalAlignment="Center" Margin="14,0,0,0"
+                       Style="{StaticResource CaptionTextBlockStyle}" />
+        </Grid>
+
+        <!-- File / edit commands -->
+        <CommandBar Grid.Row="1" DefaultLabelPosition="Right" Background="Transparent" IsOpen="False"
+                    HorizontalAlignment="Left">
+            <AppBarButton Icon="Add" Label="Нове" Click="OnNew" ToolTipService.ToolTip="Нове полотно (Ctrl+N)" />
+            <AppBarButton Icon="OpenFile" Label="Відкрити" Click="OnOpen" ToolTipService.ToolTip="Відкрити .ora або .png (Ctrl+O)" />
+            <AppBarButton Icon="Save" Label="Зберегти" Click="OnSave" ToolTipService.ToolTip="Зберегти .ora (Ctrl+S)" />
+            <AppBarButton Icon="Download" Label="Експорт PNG" Click="OnExportPng" />
+            <AppBarSeparator />
+            <AppBarButton x:Name="UndoButton" Icon="Undo" Label="Назад" Click="OnUndo" IsEnabled="False" />
+            <AppBarButton x:Name="RedoButton" Icon="Redo" Label="Вперед" Click="OnRedo" IsEnabled="False" />
+            <AppBarSeparator />
+            <AppBarButton Icon="Zoom" Label="Вмістити" Click="OnFit" />
+            <AppBarButton Icon="Calculator" Label="Тест швидкості" Click="OnBenchmark"
+                          ToolTipService.ToolTip="Малює 3000 мазків і міряє швидкість C-ядра і C# версії" />
+        </CommandBar>
+
+        <!-- Brush settings -->
+        <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="12" Margin="12,0,12,6">
+            <ToggleButton x:Name="PenButton" IsChecked="True" Click="OnPen" ToolTipService.ToolTip="Перо">
+                <FontIcon Glyph="&#xE70F;" />
+            </ToggleButton>
+            <ToggleButton x:Name="EraserButton" Click="OnEraser" ToolTipService.ToolTip="Гумка">
+                <FontIcon Glyph="&#xED60;" />
+            </ToggleButton>
+            <Button x:Name="ColorButton" ToolTipService.ToolTip="Колір" Padding="6">
+                <Rectangle x:Name="ColorSwatch" Width="22" Height="22" RadiusX="4" RadiusY="4" Fill="Black" />
+                <Button.Flyout>
+                    <Flyout>
+                        <ColorPicker x:Name="Picker" IsAlphaEnabled="False" IsMoreButtonVisible="True"
+                                     ColorChanged="OnColorChanged" Color="Black" />
+                    </Flyout>
+                </Button.Flyout>
+            </Button>
+            <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                <TextBlock Text="Розмір" VerticalAlignment="Center" />
+                <Slider x:Name="SizeSlider" Minimum="1" Maximum="300" Value="12" Width="150" />
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                <TextBlock Text="М'якість" VerticalAlignment="Center" />
+                <Slider x:Name="HardnessSlider" Minimum="0" Maximum="100" Value="80" Width="120" />
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                <TextBlock Text="Непрозорість" VerticalAlignment="Center" />
+                <Slider x:Name="FlowSlider" Minimum="1" Maximum="100" Value="100" Width="120" />
+            </StackPanel>
+        </StackPanel>
+
+        <!-- Canvas + layers -->
+        <Grid Grid.Row="3">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="300" />
+            </Grid.ColumnDefinitions>
+
+            <Border Grid.Column="0" Margin="12,0,6,6" CornerRadius="8" Background="#33808080">
+                <Grid x:Name="Viewport" Background="Transparent"
+                      PointerPressed="OnViewportDown" PointerMoved="OnViewportMove"
+                      PointerReleased="OnViewportUp" PointerCanceled="OnViewportUp"
+                      PointerWheelChanged="OnViewportWheel" SizeChanged="OnViewportSizeChanged">
+                    <Grid x:Name="Stage" HorizontalAlignment="Left" VerticalAlignment="Top" Background="Transparent">
+                        <Image x:Name="CanvasImage" Stretch="None" />
+                        <Grid.RenderTransform>
+                            <CompositeTransform x:Name="StageTransform" />
+                        </Grid.RenderTransform>
+                    </Grid>
+                </Grid>
+            </Border>
+
+            <Border Grid.Column="1" Margin="6,0,12,6" CornerRadius="8" Padding="10"
+                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <StackPanel Orientation="Horizontal" Spacing="4" Grid.Row="0" Margin="0,0,0,8">
+                        <TextBlock Text="Шари" Style="{StaticResource SubtitleTextBlockStyle}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                        <Button Click="OnAddLayer" ToolTipService.ToolTip="Новий шар"><SymbolIcon Symbol="Add" /></Button>
+                        <Button Click="OnDuplicateLayer" ToolTipService.ToolTip="Дублювати"><SymbolIcon Symbol="Copy" /></Button>
+                        <Button Click="OnMergeDown" ToolTipService.ToolTip="Об'єднати з нижнім"><FontIcon Glyph="&#xE8B9;" /></Button>
+                        <Button Click="OnDeleteLayer" ToolTipService.ToolTip="Видалити"><SymbolIcon Symbol="Delete" /></Button>
+                        <Button Click="OnLayerUp" ToolTipService.ToolTip="Вище"><SymbolIcon Symbol="Up" /></Button>
+                        <Button Click="OnLayerDown" ToolTipService.ToolTip="Нижче"><SymbolIcon Symbol="Download" /></Button>
+                    </StackPanel>
+                    <ListView x:Name="LayerList" Grid.Row="1" SelectionMode="Single" SelectionChanged="OnLayerSelected">
+                        <ListView.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding Display}" Opacity="{Binding ShownOpacity}"
+                                           VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Margin="4,6" />
+                            </DataTemplate>
+                        </ListView.ItemTemplate>
+                    </ListView>
+                    <StackPanel Grid.Row="2" Spacing="6" Margin="0,8,0,0">
+                        <TextBlock x:Name="OpacityLabel" Text="Непрозорість шару" />
+                        <Slider x:Name="LayerOpacitySlider" Minimum="0" Maximum="100" Value="100" ValueChanged="OnLayerOpacityChanged" />
+                        <ComboBox x:Name="BlendCombo" Header="Режим накладання" HorizontalAlignment="Stretch" SelectionChanged="OnBlendChanged" />
+                        <CheckBox x:Name="VisibleCheck" Content="Видимий" Click="OnVisibleClicked" />
+                        <StackPanel Orientation="Horizontal" Spacing="12">
+                            <CheckBox x:Name="AlphaLockCheck" Content="Блок. прозорості" Click="OnAlphaLockClicked" />
+                            <CheckBox x:Name="ClipCheck" Content="Обрізка" Click="OnClipClicked" />
+                        </StackPanel>
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <TextBlock x:Name="StatusText" Grid.Row="4" Margin="16,2,16,8" Style="{StaticResource CaptionTextBlockStyle}"
+                   Opacity="0.75" />
+    </Grid>
+</Window>
