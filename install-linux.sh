@@ -5,13 +5,13 @@
 #   curl -fsSL https://raw.githubusercontent.com/dorfandiysoftware-glitch/NekoPaint/main/install-linux.sh | sh
 #
 # Options (environment variables or flags):
-#   NEKOPAINT_VERSION=v0.3.0-linux1   install a specific release instead of the newest Linux one
+#   NEKOPAINT_VERSION=v0.3.0-linux2   install a specific release instead of the newest Linux one
 #   --uninstall                       remove NekoPaint again
 #   --deps                            also install runtime packages with pacman/apt/dnf (uses sudo)
 set -eu
 
 REPO="dorfandiysoftware-glitch/NekoPaint"
-FALLBACK_VERSION="v0.3.0-linux1"   # used if the GitHub API cannot be read (rate limit, proxy)
+FALLBACK_VERSION="v0.3.0-linux2"   # used if the GitHub API cannot be read (rate limit, proxy)
 PREFIX="${HOME}/.local"
 APPDIR="${PREFIX}/opt/nekopaint"
 BINLINK="${PREFIX}/bin/nekopaint"
