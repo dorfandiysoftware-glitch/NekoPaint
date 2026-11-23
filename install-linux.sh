@@ -11,6 +11,7 @@
 set -eu
 
 REPO="dorfandiysoftware-glitch/NekoPaint"
+FALLBACK_VERSION="v0.3.0-linux1"   # used if the GitHub API cannot be read (rate limit, proxy)
 PREFIX="${HOME}/.local"
 APPDIR="${PREFIX}/opt/nekopaint"
 BINLINK="${PREFIX}/bin/nekopaint"
@@ -39,10 +40,10 @@ esac
 
 if command -v curl >/dev/null 2>&1; then
     fetch() { curl -fsSL "$1"; }
-    download() { curl -fL --progress-bar -o "$2" "$1"; }
+    download() { curl -fL --progress-bar -o "$2" "$1" || die "не вдалося завантажити $1 (curl завершився з помилкою; перевірте інтернет, DNS і що URL відкривається)"; }
 elif command -v wget >/dev/null 2>&1; then
     fetch() { wget -qO- "$1"; }
-    download() { wget -O "$2" "$1"; }
+    download() { wget -O "$2" "$1" || die "не вдалося завантажити $1"; }
 else
     die "потрібен curl або wget."
 fi
@@ -66,10 +67,13 @@ if [ -n "$VERSION" ]; then
 else
     say "Шукаю останню Linux-збірку..."
     # /releases/latest ignores pre-releases, so read the list (newest first) and take the first Linux asset.
-    URL="$(fetch "https://api.github.com/repos/${REPO}/releases?per_page=30" \
+    URL="$(fetch "https://api.github.com/repos/${REPO}/releases?per_page=30" 2>/dev/null \
         | grep -o '"browser_download_url": *"[^"]*NekoPaint-Linux-[^"]*x64\.tar\.gz"' \
-        | head -n 1 | sed 's/.*"\(https[^"]*\)"$/\1/')" || true
-    [ -n "$URL" ] || die "не знайшов Linux-збірку в релізах https://github.com/${REPO}/releases"
+        | head -n 1 | sed 's/.*"\(https[^"]*\)"$/\1/')" || URL=""
+    if [ -z "$URL" ]; then
+        say "Не вдалося прочитати список релізів, беру ${FALLBACK_VERSION}."
+        URL="https://github.com/${REPO}/releases/download/${FALLBACK_VERSION}/NekoPaint-Linux-${FALLBACK_VERSION}-x64.tar.gz"
+    fi
 fi
 
 TMP="$(mktemp -d)"
