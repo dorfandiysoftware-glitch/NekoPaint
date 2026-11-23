@@ -105,10 +105,15 @@ MimeType=image/openraster;
 DESKTOP_EOF
 
 say ""
-say "Готово. Запуск: nekopaint"
+say "Готово. Запуск: nekopaint  (файл програми: $APPDIR/NekoPaint, з великої літери N)"
 case ":${PATH}:" in
     *":${PREFIX}/bin:"*) ;;
-    *) say "Додайте ${PREFIX}/bin до PATH (наприклад: export PATH=\"\$HOME/.local/bin:\$PATH\") або запускайте $APPDIR/NekoPaint" ;;
+    *)
+        say "Команда nekopaint поки не в PATH. Запустіть напряму: $APPDIR/NekoPaint"
+        case "${SHELL:-}" in
+            *fish) say "Для fish додайте в PATH так: fish_add_path ~/.local/bin" ;;
+            *) say "Для bash/zsh: export PATH=\"\$HOME/.local/bin:\$PATH\" (додайте в ~/.bashrc чи ~/.zshrc)" ;;
+        esac ;;
 esac
 if ! command -v Xwayland >/dev/null 2>&1 && [ -n "${WAYLAND_DISPLAY:-}" ]; then
     say "Схоже, XWayland не встановлено, а NekoPaint працює через нього. На Arch: sudo pacman -S xorg-xwayland (або запустіть цей скрипт із --deps)."
