@@ -49,7 +49,7 @@ namespace NekoPaint.Linux
 
         public MainWindow()
         {
-            AvaloniaXamlLoader_Load();
+            InitializeComponent();
             BlendCombo.ItemsSource = Enum.GetNames(typeof(BlendMode));
 
             Viewport.PointerPressed += OnViewportDown;
@@ -67,8 +67,6 @@ namespace NekoPaint.Linux
 
             Opened += (s, e) => { if (_doc == null) NewDocument(2048, 1536); };
         }
-
-        private void AvaloniaXamlLoader_Load() => Avalonia.Markup.Xaml.AvaloniaXamlLoader.Load(this);
 
         // ---------- document ----------
 
