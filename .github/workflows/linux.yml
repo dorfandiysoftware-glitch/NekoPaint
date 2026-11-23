@@ -26,6 +26,7 @@ jobs:
           cp native/build-linux/libnekocore.so linux/native-bin/
           cp native/build-linux/libnekocore.so windows/native-bin/
           nm -D linux/native-bin/libnekocore.so | grep " T np_"
+          if objdump -d linux/native-bin/libnekocore.so | grep -qE '\b(vxorps|vmovups|vmovdqa|vmovdqu|vpxor|vpadd)\b|%ymm'; then echo "AVX found in libnekocore.so"; exit 1; fi
 
       - uses: actions/setup-dotnet@v4
         with:
