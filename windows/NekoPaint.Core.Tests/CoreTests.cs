@@ -204,6 +204,14 @@ namespace NekoPaint.Core.Tests
             }
         }
 
+        /// <summary>In CI nekocore.dll is built first; the parity tests above are only meaningful if it really loaded.</summary>
+        [Fact]
+        public void NativeCoreLoadsWhenRequired()
+        {
+            if (Environment.GetEnvironmentVariable("NEKOPAINT_REQUIRE_NATIVE") == "1")
+                Assert.True(CoreInfo.NativeAvailable, "nekocore.dll was not loaded");
+        }
+
         private static int[] Fill(int n)
         {
             var px = new int[n];

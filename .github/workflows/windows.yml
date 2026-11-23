@@ -31,6 +31,8 @@ jobs:
           dotnet-version: '8.0.x'
 
       - name: Core tests
+        env:
+          NEKOPAINT_REQUIRE_NATIVE: '1'
         run: dotnet test windows/NekoPaint.Core.Tests/NekoPaint.Core.Tests.csproj -c Release --logger "console;verbosity=normal"
 
       - name: Publish app
