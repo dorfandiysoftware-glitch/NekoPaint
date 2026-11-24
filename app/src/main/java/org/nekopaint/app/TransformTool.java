@@ -561,6 +561,80 @@ final class TransformTool {
         changed();
     }
 
+    /**
+     * The points as fractions of the picture along its edges (position and pull), so the preset
+     * fits any picture size and shape. Null when there is nothing to save.
+     */
+    org.json.JSONObject exportPreset() {
+        if (pins.isEmpty()) {
+            return null;
+        }
+        float ox = bq[0];
+        float oy = bq[1];
+        float ex = bq[2] - bq[0];
+        float ey = bq[3] - bq[1];
+        float fx = bq[6] - bq[0];
+        float fy = bq[7] - bq[1];
+        float det = ex * fy - ey * fx;
+        if (Math.abs(det) < 1e-3f) {
+            return null;
+        }
+        try {
+            org.json.JSONArray arr = new org.json.JSONArray();
+            for (float[] pin : pins) {
+                float dx = pin[0] - ox;
+                float dy = pin[1] - oy;
+                org.json.JSONArray p = new org.json.JSONArray();
+                p.put((dx * fy - dy * fx) / det);
+                p.put((ex * dy - ey * dx) / det);
+                p.put((pin[2] * fy - pin[3] * fx) / det);
+                p.put((ex * pin[3] - ey * pin[2]) / det);
+                arr.put(p);
+            }
+            org.json.JSONObject o = new org.json.JSONObject();
+            o.put("pins", arr);
+            o.put("stiffness", stiffness);
+            return o;
+        } catch (org.json.JSONException e) {
+            return null;
+        }
+    }
+
+    /** Replaces the points with a saved preset, fitted to the current picture. */
+    boolean applyPreset(org.json.JSONObject o) {
+        if (o == null || mode != MODE_CUSTOM) {
+            return false;
+        }
+        org.json.JSONArray arr = o.optJSONArray("pins");
+        if (arr == null) {
+            return false;
+        }
+        float ox = bq[0];
+        float oy = bq[1];
+        float ex = bq[2] - bq[0];
+        float ey = bq[3] - bq[1];
+        float fx = bq[6] - bq[0];
+        float fy = bq[7] - bq[1];
+        pins.clear();
+        for (int i = 0; i < arr.length() && pins.size() < 30; i++) {
+            org.json.JSONArray p = arr.optJSONArray(i);
+            if (p == null || p.length() < 4) {
+                continue;
+            }
+            float u = (float) p.optDouble(0);
+            float v = (float) p.optDouble(1);
+            float mu = (float) p.optDouble(2);
+            float mv = (float) p.optDouble(3);
+            pins.add(new float[] {
+                ox + u * ex + v * fx, oy + u * ey + v * fy,
+                mu * ex + mv * fx, mu * ey + mv * fy});
+        }
+        stiffness = Math.max(10, Math.min(100, o.optInt("stiffness", stiffness)));
+        pinsDirty = true;
+        changed();
+        return true;
+    }
+
     void setStiffness(int s) {
         stiffness = Math.max(10, Math.min(100, s));
         pinsDirty = true;

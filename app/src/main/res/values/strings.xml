@@ -277,6 +277,12 @@
     <string name="transform_stiffness">Reach of a point</string>
     <string name="transform_pin_undo">Remove last point</string>
     <string name="transform_pin_clear">Remove all points</string>
+    <string name="transform_preset_save">Save as preset\u2026</string>
+    <string name="transform_preset_load">Presets\u2026</string>
+    <string name="transform_preset_default_name">Preset %1$d</string>
+    <string name="transform_preset_no_points">Put at least one point first</string>
+    <string name="transform_preset_empty">No saved presets yet</string>
+    <string name="transform_preset_saved">Preset saved</string>
     <string name="interp_average">Colour average (pixel)</string>
     <string name="interp_bicubic">Bicubic (sharp)</string>
     <string name="interp_lanczos2">Lanczos 2 (sharp)</string>

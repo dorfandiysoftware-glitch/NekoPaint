@@ -975,6 +975,79 @@ final class EditorUi {
         tfContent.addView(sliderRowSimple(value, sl));
     }
 
+    /** Asks for a name and stores the points of the Custom transform as a preset. */
+    private void askPresetName() {
+        if (tf == null || tf.pins.isEmpty()) {
+            Toast.makeText(act, R.string.transform_preset_no_points, Toast.LENGTH_SHORT).show();
+            return;
+        }
+        final android.widget.EditText input = new android.widget.EditText(act);
+        input.setSingleLine(true);
+        input.setText(act.getString(R.string.transform_preset_default_name,
+                TransformPresets.names(act).size() + 1));
+        input.selectAll();
+        new com.google.android.material.dialog.MaterialAlertDialogBuilder(act)
+                .setTitle(R.string.transform_preset_save)
+                .setView(input)
+                .setNegativeButton(android.R.string.cancel, null)
+                .setPositiveButton(android.R.string.ok, (d, w) -> {
+                    String name = input.getText().toString().trim();
+                    org.json.JSONObject preset = tf == null ? null : tf.exportPreset();
+                    if (name.isEmpty() || preset == null) {
+                        return;
+                    }
+                    TransformPresets.save(act, name, preset);
+                    Toast.makeText(act, R.string.transform_preset_saved, Toast.LENGTH_SHORT).show();
+                })
+                .show();
+    }
+
+    /** Lists the saved presets: tap one to use it, the cross deletes it. */
+    private void showPresets() {
+        final java.util.List<String> names = TransformPresets.names(act);
+        if (names.isEmpty()) {
+            Toast.makeText(act, R.string.transform_preset_empty, Toast.LENGTH_SHORT).show();
+            return;
+        }
+        final LinearLayout list = new LinearLayout(act);
+        list.setOrientation(LinearLayout.VERTICAL);
+        list.setPadding(dp(16), dp(8), dp(16), dp(8));
+        final ScrollView scroll = new ScrollView(act);
+        scroll.addView(list);
+        final androidx.appcompat.app.AlertDialog dialog =
+                new com.google.android.material.dialog.MaterialAlertDialogBuilder(act)
+                        .setTitle(R.string.transform_preset_load)
+                        .setView(scroll)
+                        .setNegativeButton(android.R.string.cancel, null)
+                        .create();
+        for (final String name : names) {
+            final LinearLayout row = new LinearLayout(act);
+            row.setGravity(Gravity.CENTER_VERTICAL);
+            TextView label = label(name, 16, fg);
+            label.setPadding(dp(4), dp(12), dp(4), dp(12));
+            row.addView(label, new LinearLayout.LayoutParams(0,
+                    ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+            label.setOnClickListener(v -> {
+                if (tf != null && tf.applyPreset(TransformPresets.get(act, name))) {
+                    fillTransformContent();
+                }
+                dialog.dismiss();
+            });
+            TextView del = label("\u2715", 18, fgDim);
+            del.setPadding(dp(14), dp(12), dp(14), dp(12));
+            del.setOnClickListener(v -> {
+                TransformPresets.delete(act, name);
+                list.removeView(row);
+                if (list.getChildCount() == 0) {
+                    dialog.dismiss();
+                }
+            });
+            row.addView(del);
+            list.addView(row);
+        }
+        dialog.show();
+    }
+
     private void fillTransformContent() {
         tfContent.removeAllViews();
         tfSync.clear();
@@ -1027,6 +1100,16 @@ final class EditorUi {
             row.addView(undo);
             row.addView(clear);
             tfContent.addView(row);
+            LinearLayout presetRow = new LinearLayout(act);
+            TextView savePreset = label(act.getString(R.string.transform_preset_save), 14, accent);
+            savePreset.setPadding(dp(8), dp(10), dp(8), dp(10));
+            savePreset.setOnClickListener(v -> askPresetName());
+            TextView loadPreset = label(act.getString(R.string.transform_preset_load), 14, accent);
+            loadPreset.setPadding(dp(8), dp(10), dp(8), dp(10));
+            loadPreset.setOnClickListener(v -> showPresets());
+            presetRow.addView(savePreset);
+            presetRow.addView(loadPreset);
+            tfContent.addView(presetRow);
         } else {
             tfSlider(R.string.transform_div_x, 1, 10, () -> tf.divX,
                     v -> tf.setDivisions(v, tf.divY), v -> String.valueOf(v));

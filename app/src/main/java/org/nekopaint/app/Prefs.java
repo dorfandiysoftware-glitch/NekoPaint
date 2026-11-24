@@ -108,4 +108,13 @@ final class Prefs {
     static void setGpuApi(Context c, String api) {
         prefs(c).edit().putString("gpu_api", api).apply();
     }
+
+    /** The saved Custom transform presets, as a JSON array text. */
+    static String transformPresets(Context c) {
+        return prefs(c).getString("transform_presets", "[]");
+    }
+
+    static void setTransformPresets(Context c, String json) {
+        prefs(c).edit().putString("transform_presets", json).apply();
+    }
 }

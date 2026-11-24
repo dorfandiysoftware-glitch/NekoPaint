@@ -276,6 +276,12 @@
     <string name="transform_stiffness">Радіус дії точки</string>
     <string name="transform_pin_undo">Прибрати останню точку</string>
     <string name="transform_pin_clear">Прибрати всі точки</string>
+    <string name="transform_preset_save">Зберегти як пресет\u2026</string>
+    <string name="transform_preset_load">Пресети\u2026</string>
+    <string name="transform_preset_default_name">Пресет %1$d</string>
+    <string name="transform_preset_no_points">Спершу постав хоча б одну точку</string>
+    <string name="transform_preset_empty">Збережених пресетів ще немає</string>
+    <string name="transform_preset_saved">Пресет збережено</string>
     <string name="interp_average">Усереднення кольору (піксель)</string>
     <string name="interp_bicubic">Бікубічна (різка)</string>
     <string name="interp_lanczos2">Ланцош 2 (різка)</string>
