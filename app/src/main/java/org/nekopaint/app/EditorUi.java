@@ -812,6 +812,31 @@ final class EditorUi {
     private boolean tfSyncing;
     private final java.util.ArrayList<Runnable> tfSync = new java.util.ArrayList<>();
 
+    /**
+     * While a transform is open the layer's picture is held by the tool and the layer is empty.
+     * A save in that state must not store the empty layer, so the picture is put back for the
+     * save and lifted again afterwards.
+     */
+    void saveWithTransformUndone(Runnable save) {
+        if (tf == null || tfLayer < 0 || tfNewLayer || tfOriginal == null) {
+            save.run();
+            return;
+        }
+        Document doc = canvas.getDocument();
+        if (tfLayer >= doc.getLayerCount()) {
+            save.run();
+            return;
+        }
+        Layer l = doc.getLayer(tfLayer);
+        nekopaint.core.Rect all = new nekopaint.core.Rect(0, 0, l.getWidth(), l.getHeight());
+        l.pasteRect(all, tfOriginal);
+        try {
+            save.run();
+        } finally {
+            l.pasteRect(all, new int[l.getWidth() * l.getHeight()]);
+        }
+    }
+
     boolean isTransforming() {
         return tf != null;
     }

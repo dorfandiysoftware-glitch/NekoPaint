@@ -115,6 +115,7 @@ public class MainActivity extends AppCompatActivity {
         });
         updateHistoryButtons();
         loadProject();
+        CrashLog.showIfAny(this);
     }
 
     @Override
@@ -180,7 +181,17 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
         try {
-            ImageIo.save(this, projectUri, canvas.getDocument(), canvas.getEditor().getLog());
+            final IOException[] failed = new IOException[1];
+            ui.saveWithTransformUndone(() -> {
+                try {
+                    ImageIo.save(this, projectUri, canvas.getDocument(), canvas.getEditor().getLog());
+                } catch (IOException e) {
+                    failed[0] = e;
+                }
+            });
+            if (failed[0] != null) {
+                throw failed[0];
+            }
             dirty = false;
         } catch (IOException | RuntimeException | OutOfMemoryError e) {
             Toast.makeText(this, R.string.save_failed, Toast.LENGTH_LONG).show();

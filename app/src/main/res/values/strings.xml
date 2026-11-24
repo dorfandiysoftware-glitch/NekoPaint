@@ -292,4 +292,6 @@
     <string name="transform_repeat_y">Repeat Y (spacing)</string>
     <string name="transform_phase_x">Phase X</string>
     <string name="transform_phase_y">Phase Y</string>
+    <string name="crash_title">Crash report</string>
+    <string name="crash_copy">Copy</string>
 </resources>

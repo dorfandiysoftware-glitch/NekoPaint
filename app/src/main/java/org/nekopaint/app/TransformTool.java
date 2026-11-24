@@ -526,7 +526,12 @@ final class TransformTool {
             sx += pinWeights[2 * k] * w;
             sy += pinWeights[2 * k + 1] * w;
         }
-        return new float[] {sx, sy};
+        if (Float.isNaN(sx) || Float.isNaN(sy) || Float.isInfinite(sx) || Float.isInfinite(sy)) {
+            return new float[] {0, 0};
+        }
+        // A bad system of points must not throw the picture off the canvas.
+        float limit = 3f * sigma();
+        return new float[] {Math.max(-limit, Math.min(limit, sx)), Math.max(-limit, Math.min(limit, sy))};
     }
 
     /** Puts a new point where the picture currently is at (x, y); nothing moves yet. */

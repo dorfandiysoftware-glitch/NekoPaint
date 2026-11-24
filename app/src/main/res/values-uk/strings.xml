@@ -291,4 +291,6 @@
     <string name="transform_repeat_y">Повтор Y (крок)</string>
     <string name="transform_phase_x">Фаза X</string>
     <string name="transform_phase_y">Фаза Y</string>
+    <string name="crash_title">Звіт про збій</string>
+    <string name="crash_copy">Копіювати</string>
 </resources>

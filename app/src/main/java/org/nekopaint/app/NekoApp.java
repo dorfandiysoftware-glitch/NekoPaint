@@ -9,6 +9,7 @@ public class NekoApp extends Application {
     @Override
     public void onCreate() {
         super.onCreate();
+        CrashLog.install(this);
         applyTheme(Prefs.theme(this));
     }
 
