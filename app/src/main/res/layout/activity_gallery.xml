@@ -83,7 +83,6 @@
                     android:id="@+id/detail_image"
                     android:layout_width="match_parent"
                     android:layout_height="match_parent"
-                    android:background="#FFFFFFFF"
                     android:importantForAccessibility="no"
                     android:scaleType="fitCenter" />
             </FrameLayout>

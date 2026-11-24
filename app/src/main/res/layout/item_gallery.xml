@@ -16,7 +16,7 @@
         <FrameLayout
             android:layout_width="match_parent"
             android:layout_height="160dp"
-            android:background="#FFFFFFFF">
+            android:background="?attr/colorSurfaceContainerHighest">
 
             <ImageView
                 android:id="@+id/item_thumb"

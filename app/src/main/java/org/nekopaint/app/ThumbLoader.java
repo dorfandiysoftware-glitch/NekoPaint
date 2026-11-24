@@ -41,7 +41,7 @@ final class ThumbLoader {
         final GalleryStore.Item it = item;
         final ImageView view = target;
         pool.execute(() -> {
-            Bitmap bitmap = decode(it);
+            Bitmap bitmap = onPaper(decode(it));
             if (bitmap == null) {
                 return;
             }
@@ -56,6 +56,21 @@ final class ThumbLoader {
 
     void shutdown() {
         pool.shutdownNow();
+    }
+
+    /**
+     * Puts the picture on white paper, so the transparent pixels look like paper and the white
+     * stays under the picture only (a white view background showed bars around it).
+     */
+    private static Bitmap onPaper(Bitmap src) {
+        if (src == null) {
+            return null;
+        }
+        Bitmap out = Bitmap.createBitmap(src.getWidth(), src.getHeight(), Bitmap.Config.ARGB_8888);
+        android.graphics.Canvas c = new android.graphics.Canvas(out);
+        c.drawColor(0xFFFFFFFF);
+        c.drawBitmap(src, 0, 0, null);
+        return out;
     }
 
     private Bitmap decode(GalleryStore.Item item) {
